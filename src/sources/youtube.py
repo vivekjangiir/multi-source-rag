@@ -368,28 +368,44 @@ def _web_search_fallback(video_id: str, url: str) -> List[Document]:
     """
     Last resort when all transcript methods fail on cloud platforms.
 
-    Gets the video title via oembed, then reuses the app's existing web_search()
-    function (DuckDuckGo / Tavily — whichever is configured) to find web content
-    about the video. Returns Documents tagged source_type='youtube_web_fallback'
-    so citations make clear these came from web sources, not the raw transcript.
+    Tries up to three search queries in order, stopping at the first one
+    that returns results. This handles both the case where oembed gives us
+    a real title AND the case where it falls back to a generic ID string.
     """
     from src.sources.web_search import web_search
 
-    # oembed works from cloud IPs — gives us the real video title
     title = _get_title(video_id, url)
+    title_is_generic = title.startswith("YouTube Video (")
 
-    # Single focused query is more reliable than three parallel ones
-    query = f"{title} explained summary key points"
+    # Queries from most to least specific.
+    # If oembed failed we skip the title-based query and go straight
+    # to searching by the video URL/ID, which DuckDuckGo CAN find.
+    queries: List[str] = []
+    if not title_is_generic:
+        queries.append(f"{title} explained summary key points")
+    queries.append(f"youtube {video_id} summary review")          # always try by ID
+    queries.append(f"site:youtube.com {video_id}")                # fallback: YouTube page itself
 
-    raw_docs = web_search(query, max_results=5)
+    raw_docs: List[Document] = []
+    last_error = ""
+    for q in queries:
+        try:
+            results = web_search(q, max_results=5)
+            if results:
+                raw_docs = results
+                break
+        except Exception as exc:
+            last_error = str(exc)
+            continue
 
     if not raw_docs:
         raise ValueError(
-            f"Web search returned no results for '{title}'. "
-            "Try pasting a direct web URL or uploading a PDF instead."
+            f"Web search fallback found no results for video {video_id}. "
+            f"Last error: {last_error or 'no results returned'}. "
+            "Please paste a direct article URL or upload a PDF instead."
         )
 
-    # Re-tag documents so the UI shows the YouTube context
+    display_title = title if not title_is_generic else f"YouTube/{video_id}"
     docs: List[Document] = []
     for d in raw_docs:
         src_url = d.metadata.get("source_url", "")
@@ -400,7 +416,7 @@ def _web_search_fallback(video_id: str, url: str) -> List[Document]:
                 "source_type": "youtube_web_fallback",
                 "video_id":    video_id,
                 "citation": (
-                    f"[YouTube→Web] \"{title}\" — "
+                    f"[YouTube→Web] \"{display_title}\" — "
                     f"{d.metadata.get('title', src_url)}"
                 ),
             },
