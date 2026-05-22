@@ -364,15 +364,76 @@ def _entries_to_documents(
 # Public entry point
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _web_search_fallback(video_id: str, url: str) -> List[Document]:
+    """
+    Last resort when all transcript methods fail on cloud platforms.
+    Gets the video title via oembed, then searches DuckDuckGo for web content
+    about the video and ingests those results instead.
+
+    Returns Documents tagged source_type='youtube_web_fallback' so citations
+    make clear these are web sources, not the raw transcript.
+    """
+    # Get title via oembed (this usually works even from cloud IPs)
+    title = _get_title(video_id, url)
+
+    from duckduckgo_search import DDGS
+    queries = [
+        f'"{title}" summary transcript',
+        f'"{title}" key points explained',
+        f'site:youtube.com "{title}"',
+    ]
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=config.MAX_CHUNK_SIZE,
+        chunk_overlap=config.CHUNK_OVERLAP,
+    )
+    docs: List[Document] = []
+
+    with DDGS() as ddgs:
+        for query in queries:
+            try:
+                results = list(ddgs.text(query, max_results=3))
+                for r in results:
+                    text    = f"{r.get('title','')}\n\n{r.get('body','')}"
+                    src_url = r.get("href", "")
+                    for chunk in splitter.split_text(text):
+                        docs.append(Document(
+                            page_content=chunk,
+                            metadata={
+                                "source_type":   "youtube_web_fallback",
+                                "source_url":    src_url,
+                                "video_id":      video_id,
+                                "title":         title,
+                                "citation":      (
+                                    f"[YouTube/Web] {title} — "
+                                    f"web source: {src_url or 'DuckDuckGo search'}"
+                                ),
+                            },
+                        ))
+            except Exception:
+                continue
+
+    if not docs:
+        raise ValueError(
+            f"Could not fetch transcript or web content for: {url}\n"
+            "YouTube blocks transcript requests from cloud servers. "
+            "Please try uploading a PDF or pasting a web URL instead."
+        )
+
+    return docs
+
+
 def load_youtube(url: str) -> List[Document]:
     """
     Load a YouTube video transcript and return chunked Documents with citations.
 
-    Three-method cascade (most → least reliable on cloud platforms):
+    Four-method cascade (most → least reliable on cloud platforms):
       1. youtube-transcript-api  — fast, works locally and some cloud IPs
       2. yt-dlp                  — browser-like, bypasses many IP blocks
-      3. Invidious proxy         — requests go from a third-party server,
-                                   completely bypasses YouTube's cloud-IP block
+      3. Invidious proxy         — routes through a third-party server
+      4. Web search fallback     — searches DuckDuckGo for content about the
+                                   video when all transcript methods are blocked;
+                                   always works, degrades gracefully
     """
     video_id = _extract_video_id(url)
     entries: List[dict] = []
@@ -385,7 +446,7 @@ def load_youtube(url: str) -> List[Document]:
         entries = _fetch_via_transcript_api(video_id)
         title   = _get_title(video_id, url)
     except Exception as e:
-        errors.append(f"[1/3 youtube-transcript-api] {e}")
+        errors.append(f"transcript-api: {e}")
 
     # ── Attempt 2: yt-dlp ─────────────────────────────────────────────────────
     if not entries:
@@ -393,25 +454,31 @@ def load_youtube(url: str) -> List[Document]:
             import yt_dlp  # noqa: F401
             entries, title = _fetch_via_ytdlp(video_id, url)
         except ImportError:
-            errors.append("[2/3 yt-dlp] not installed")
+            errors.append("yt-dlp: not installed")
         except Exception as e:
-            errors.append(f"[2/3 yt-dlp] {e}")
+            errors.append(f"yt-dlp: {e}")
 
-    # ── Attempt 3: Invidious proxy (bypasses cloud IP blocks entirely) ─────────
+    # ── Attempt 3: Invidious proxy ─────────────────────────────────────────────
     if not entries:
         try:
             entries, title = _fetch_via_invidious(video_id)
         except Exception as e:
-            errors.append(f"[3/3 Invidious] {e}")
+            errors.append(f"invidious: {e}")
 
-    # ── All methods failed ─────────────────────────────────────────────────────
-    if not entries:
-        combined = " | ".join(errors)
-        raise ValueError(
-            f"Could not fetch transcript for {url}.\n\n"
-            f"All three methods failed:\n{combined}\n\n"
-            f"Tip: The video may have captions disabled, be private, or age-restricted. "
-            f"Try a different video, or ingest a PDF/URL instead."
-        )
+    # ── Got transcript entries → build documents ───────────────────────────────
+    if entries:
+        return _entries_to_documents(entries, title, video_id, url)
 
-    return _entries_to_documents(entries, title, video_id, url)
+    # ── Attempt 4: Web search fallback (always works on cloud) ────────────────
+    # All transcript methods failed (YouTube blocking cloud IP).
+    # Fall back to searching the web for content about this video.
+    try:
+        return _web_search_fallback(video_id, url)
+    except Exception as e:
+        errors.append(f"web-fallback: {e}")
+
+    # ── Truly nothing worked ───────────────────────────────────────────────────
+    raise ValueError(
+        f"Could not load YouTube video {url}. All methods failed.\n"
+        + "\n".join(f"  • {e}" for e in errors)
+    )
