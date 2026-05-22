@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Source RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════════════════ */
+:root {
+  --bg-app:          #171717;
+  --bg-sidebar:      #212121;
+  --bg-chat:         #212121;
+  --bg-input:        #2f2f2f;
+  --bg-hover:        #2a2a2a;
+  --bg-active:       #303030;
+  --bg-user-msg:     #2f2f2f;
+  --bg-card:         #2a2a2a;
+
+  --border:          #3a3a3a;
+  --border-subtle:   #272727;
+
+  --text-primary:    #ececec;
+  --text-secondary:  #9b9b9b;
+  --text-muted:      #5a5a5a;
+
+  --accent:          #10a37f;
+  --accent-hover:    #0e8f70;
+  --accent-dim:      rgba(16,163,127,.15);
+
+  --yellow: #f59e0b; --red: #ef4444; --blue: #3b82f6;
+  --green: #10b981;  --gray: #6b7280; --purple: #8b5cf6;
+
+  --r-sm:  6px;  --r-md: 10px; --r-lg: 16px; --r-xl: 24px;
+  --sidebar-w: 264px;
+  --chat-max:  768px;
+  --ease: 150ms ease;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESET + BASE
+═══════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+button, input, textarea { font-family: inherit; }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ═══════════════════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════════════════ */
+.app { display: flex; height: 100vh; }
+
+/* ═══════════════════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════════════════ */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar-top {
+  padding: 16px 12px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Logo */
+.logo { display: flex; align-items: center; gap: 10px; padding: 2px 4px; }
+.logo-mark {
+  width: 30px; height: 30px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: grid; place-items: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.logo-label { line-height: 1.25; }
+.logo-name  { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.logo-sub   { font-size: 10px; color: var(--text-muted); font-weight: 400; }
+
+/* New chat */
+.btn-new-chat {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ease);
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.btn-new-chat:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+/* Sidebar scroll body */
+.sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Section label */
+.sec-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+/* Source input area */
+.src-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  transition: border-color var(--ease);
+  margin-bottom: 6px;
+}
+.src-input::placeholder { color: var(--text-muted); }
+.src-input:focus { border-color: var(--accent); }
+
+.src-row { display: flex; gap: 6px; }
+.btn-sm {
+  flex: 1;
+  background: var(--bg-active);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ease);
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+}
+.btn-sm:hover        { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.btn-sm:disabled     { opacity: .5; cursor: not-allowed; }
+.btn-sm.loading      { pointer-events: none; }
+
+/* Source chips */
+.source-chips { display: flex; flex-direction: column; gap: 5px; }
+.chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px;
+  background: var(--bg-active);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+  animation: fadeUp .2s ease;
+}
+.chip-badge {
+  font-size: 8px; font-weight: 800; letter-spacing: .04em;
+  padding: 2px 5px; border-radius: 4px; color: #fff;
+  text-transform: uppercase; flex-shrink: 0;
+}
+.chip-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-count { color: var(--text-muted); font-size: 10px; flex-shrink: 0; }
+
+/* History */
+.hist-item {
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--ease);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hist-item:hover  { background: var(--bg-hover); color: var(--text-primary); }
+.hist-item.active { background: var(--bg-active); color: var(--text-primary); }
+
+/* Footer config pills */
+.sidebar-foot {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; flex-wrap: wrap; gap: 5px;
+}
+.cfg-pill {
+  font-size: 10px; padding: 2px 7px;
+  border-radius: 20px; background: var(--bg-active);
+  border: 1px solid var(--border-subtle); color: var(--text-muted);
+}
+.cfg-pill b { color: var(--text-secondary); font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN CHAT AREA
+═══════════════════════════════════════════════════════════ */
+.chat-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Messages scroll container */
+.msg-scroll {
+  flex: 1; overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.msg-inner {
+  max-width: var(--chat-max);
+  margin: 0 auto;
+  padding: 40px 24px 24px;
+}
+
+/* ─── Welcome screen ─── */
+.welcome {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 62vh; text-align: center; gap: 24px;
+}
+.welcome-glyph {
+  width: 60px; height: 60px;
+  background: var(--accent);
+  border-radius: 18px;
+  display: grid; place-items: center;
+  font-size: 28px;
+  box-shadow: 0 0 40px rgba(16,163,127,.3);
+}
+.welcome h1 { font-size: 22px; font-weight: 700; }
+.welcome p  { font-size: 14px; color: var(--text-secondary); line-height: 1.65; max-width: 420px; }
+
+.example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 540px; }
+.ex-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  cursor: pointer; text-align: left;
+  transition: all var(--ease);
+}
+.ex-card:hover { border-color: var(--accent); background: var(--accent-dim); }
+.ex-card .ex-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 5px; }
+.ex-card .ex-body  { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+/* ─── Message row ─── */
+.msg { display: flex; flex-direction: column; margin-bottom: 28px; animation: fadeUp .2s ease; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.msg-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; flex-shrink: 0;
+}
+.av-user  { background: #5865f2; color: #fff; }
+.av-bot   { background: var(--accent); color: #fff; font-size: 13px; }
+.msg-name { font-size: 13px; font-weight: 600; }
+
+.msg-body {
+  padding-left: 38px;
+  font-size: 15px;
+  line-height: 1.78;
+  color: var(--text-primary);
+}
+.msg.user .msg-body {
+  background: var(--bg-user-msg);
+  border-radius: var(--r-md);
+  padding: 14px 18px;
+}
+
+/* ─── Typing dots ─── */
+.typing { display: flex; align-items: center; gap: 5px; padding-left: 38px; padding-top: 4px; }
+.dot {
+  width: 7px; height: 7px; background: var(--text-muted);
+  border-radius: 50%; animation: bounce 1.2s infinite;
+}
+.dot:nth-child(2) { animation-delay: .18s; }
+.dot:nth-child(3) { animation-delay: .36s; }
+@keyframes bounce {
+  0%,60%,100% { transform: translateY(0); opacity: .35; }
+  30%          { transform: translateY(-7px); opacity: 1; }
+}
+
+/* ─── Citations ─── */
+.cites { padding-left: 38px; margin-top: 14px; }
+.cites-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700;
+  color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em;
+  cursor: pointer; user-select: none;
+  margin-bottom: 10px;
+  background: none; border: none; padding: 0;
+}
+.cites-toggle svg { transition: transform var(--ease); }
+.cites-toggle.closed svg { transform: rotate(-90deg); }
+
+.cite-list { display: flex; flex-direction: column; gap: 6px; }
+.cite-card {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  transition: border-color var(--ease);
+  color: var(--text-primary);
+}
+.cite-card:hover { border-color: var(--accent); }
+.cite-n  { font-size: 11px; font-weight: 700; color: var(--text-muted); min-width: 20px; padding-top: 1px; }
+.cite-info { flex: 1; min-width: 0; }
+.cite-title {
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.cite-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.badge {
+  font-size: 8px; font-weight: 800; padding: 2px 6px;
+  border-radius: 4px; color: #fff; text-transform: uppercase; letter-spacing: .04em;
+}
+.cite-extra { font-size: 11px; color: var(--text-muted); }
+.cite-url   { font-size: 11px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.cite-ext-icon { flex-shrink: 0; margin-top: 1px; color: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════════════════
+   INPUT AREA
+═══════════════════════════════════════════════════════════ */
+.input-area { padding: 12px 24px 20px; }
+.input-wrap { max-width: var(--chat-max); margin: 0 auto; }
+
+/* URL ingestion bar (slides in above input box) */
+.url-bar {
+  display: none;
+  align-items: center; gap: 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  animation: fadeUp .15s ease;
+}
+.url-bar.open { display: flex; }
+.url-bar-icon { color: var(--text-muted); flex-shrink: 0; }
+.url-bar input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text-primary); font-size: 13px;
+}
+.url-bar input::placeholder { color: var(--text-muted); }
+.btn-add-src {
+  background: var(--accent); border: none; color: #fff;
+  padding: 5px 14px; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background var(--ease); white-space: nowrap;
+}
+.btn-add-src:hover { background: var(--accent-hover); }
+.btn-close-bar {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px;
+  transition: color var(--ease);
+}
+.btn-close-bar:hover { color: var(--text-primary); }
+
+/* Main input box */
+.input-box {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  padding: 12px 14px;
+  transition: border-color var(--ease);
+}
+.input-box:focus-within { border-color: var(--accent); }
+
+.input-box textarea {
+  width: 100%; background: none; border: none; outline: none;
+  color: var(--text-primary); font-size: 15px; line-height: 1.6;
+  resize: none; min-height: 24px; max-height: 200px;
+  display: block;
+}
+.input-box textarea::placeholder { color: var(--text-muted); }
+
+.input-row {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-top: 10px;
+}
+.input-tools { display: flex; gap: 6px; }
+
+.tool-pill {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 5px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 500;
+  cursor: pointer; transition: all var(--ease);
+  display: flex; align-items: center; gap: 5px; white-space: nowrap;
+}
+.tool-pill:hover        { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.tool-pill.active       { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+.tool-pill label        { cursor: pointer; display: flex; align-items: center; gap: 5px; }
+
+.send-btn {
+  width: 34px; height: 34px;
+  background: var(--accent); border: none; border-radius: 50%;
+  color: #fff; cursor: pointer; display: grid; place-items: center;
+  transition: all var(--ease); flex-shrink: 0;
+}
+.send-btn:hover    { background: var(--accent-hover); transform: scale(1.07); }
+.send-btn:disabled { background: var(--bg-active); cursor: not-allowed; transform: none; }
+
+.input-hint { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 8px; }
+
+/* ═══════════════════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════════════════ */
+.toast {
+  position: fixed; bottom: 96px; left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: #1e1e1e; border: 1px solid var(--border);
+  color: var(--text-primary); padding: 8px 18px;
+  border-radius: var(--r-md); font-size: 13px;
+  opacity: 0; transition: all .25s ease;
+  pointer-events: none; z-index: 999; white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+.toast.show   { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok     { border-color: var(--accent); color: var(--accent); }
+.toast.err    { border-color: var(--red);    color: var(--red); }
+
+/* ═══════════════════════════════════════════════════════════
+   SPINNER
+═══════════════════════════════════════════════════════════ */
+.spin {
+  display: inline-block; width: 11px; height: 11px;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin .6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .msg-inner { padding: 24px 16px; }
+  .input-area { padding: 10px 16px 16px; }
+  .example-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══════ SIDEBAR ═══════ -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <!-- Logo -->
+      <div class="logo">
+        <div class="logo-mark">🔍</div>
+        <div class="logo-label">
+          <div class="logo-name">Multi-Source RAG</div>
+          <div class="logo-sub">LangChain · LangGraph</div>
+        </div>
+      </div>
+      <!-- New chat -->
+      <button class="btn-new-chat" onclick="newChat()">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        New Chat
+      </button>
+    </div>
+
+    <div class="sidebar-body">
+
+      <!-- Add Sources -->
+      <div>
+        <div class="sec-label">Add Sources</div>
+        <input class="src-input" id="sideUrl" placeholder="YouTube · GitHub · Web URL…" onkeydown="if(event.key==='Enter')sidebarIngest()">
+        <div class="src-row">
+          <button class="btn-sm" id="sideIngestBtn" onclick="sidebarIngest()">
+            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            <span id="sideIngestTxt">Ingest</span>
+          </button>
+          <label class="btn-sm" title="Upload PDF, DOCX, TXT">
+            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Upload
+            <input type="file" id="sideFile" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="handleFileUpload(this)">
+          </label>
+        </div>
+      </div>
+
+      <!-- Indexed sources -->
+      <div id="srcSection" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="sec-label" style="margin-bottom:0">Indexed (<span id="srcCount">0</span>)</div>
+          <button onclick="clearStore()" title="Delete all indexed data and start fresh"
+            style="background:none;border:none;color:var(--text-muted);font-size:10px;cursor:pointer;
+                   padding:2px 6px;border-radius:4px;border:1px solid var(--border-subtle);
+                   transition:all .15s ease;font-family:inherit;"
+            onmouseover="this.style.color='#ef4444';this.style.borderColor='#ef4444'"
+            onmouseout="this.style.color='var(--text-muted)';this.style.borderColor='var(--border-subtle)'">
+            Clear all
+          </button>
+        </div>
+        <div class="source-chips" id="srcList"></div>
+      </div>
+
+      <!-- Chat history -->
+      <div id="histSection" style="display:none">
+        <div class="sec-label">Recent</div>
+        <div id="histList"></div>
+      </div>
+
+    </div><!-- /sidebar-body -->
+
+    <!-- Config pills -->
+    <div class="sidebar-foot" id="cfgFoot">
+      <div class="cfg-pill">connecting…</div>
+    </div>
+  </aside>
+
+  <!-- ═══════ MAIN ═══════ -->
+  <main class="chat-main">
+
+    <!-- Messages -->
+    <div class="msg-scroll" id="msgScroll">
+      <div class="msg-inner" id="msgInner">
+
+        <!-- Welcome screen -->
+        <div class="welcome" id="welcomeScreen">
+          <div class="welcome-glyph">🔍</div>
+          <div>
+            <h1>What do you want to explore?</h1>
+            <p>Add sources in the sidebar — YouTube videos, PDFs, GitHub repos, or live web search — then ask anything.</p>
+          </div>
+          <div class="example-grid">
+            <div class="ex-card" onclick="fillInput(this)">
+              <div class="ex-title">📺  YouTube</div>
+              <div class="ex-body">Summarize the key concepts from the video I added</div>
+            </div>
+            <div class="ex-card" onclick="fillInput(this)">
+              <div class="ex-title">📄  Document</div>
+              <div class="ex-body">What are the main findings in this PDF?</div>
+            </div>
+            <div class="ex-card" onclick="fillInput(this)">
+              <div class="ex-title">💻  Codebase</div>
+              <div class="ex-body">How does authentication work in this repo?</div>
+            </div>
+            <div class="ex-card" onclick="fillInput(this)">
+              <div class="ex-title">🌐  Live Web</div>
+              <div class="ex-body">What are the latest developments on this topic?</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /msg-scroll -->
+
+    <!-- Input area -->
+    <div class="input-area">
+      <div class="input-wrap">
+
+        <!-- URL bar (slides in above input box) -->
+        <div class="url-bar" id="urlBar">
+          <svg class="url-bar-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+          <input type="text" id="urlBarInput" placeholder="Paste any URL, YouTube link, or GitHub repo…" onkeydown="if(event.key==='Enter')barIngest()">
+          <button class="btn-add-src" onclick="barIngest()">Add Source</button>
+          <button class="btn-close-bar" onclick="closeUrlBar()" aria-label="Close">×</button>
+        </div>
+
+        <!-- Main box -->
+        <div class="input-box">
+          <textarea id="qInput"
+            placeholder="Ask anything about your sources…"
+            rows="1"
+            onkeydown="onKey(event)"
+            oninput="grow(this)"></textarea>
+          <div class="input-row">
+            <div class="input-tools">
+              <button class="tool-pill" id="urlToggle" onclick="toggleUrlBar()" title="Add a URL source">
+                <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                Add URL
+              </button>
+              <div class="tool-pill">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:5px">
+                  <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                  Upload File
+                  <input type="file" accept=".pdf,.docx,.txt,.md" style="display:none" onchange="handleFileUpload(this)">
+                </label>
+              </div>
+            </div>
+            <button class="send-btn" id="sendBtn" onclick="send()" aria-label="Send" title="Send  (Enter)">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="input-hint">Sources are retrieved and cited automatically · Shift+Enter for new line</div>
+      </div>
+    </div>
+
+  </main>
+</div><!-- /app -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// Empty string = same origin. Works locally (localhost:8000) AND on Render/any host.
+const API  = '';
+let busy   = false;
+let sources = [];
+
+const COLORS = {
+  youtube:'#ef4444', pdf:'#f59e0b', docx:'#3b82f6',
+  web_url:'#10b981', web_search:'#10b981',
+  github:'#6b7280', text:'#8b5cf6', unknown:'#6b7280'
+};
+
+/* ─── Boot ─────────────────────────────────────────────────── */
+(async function boot() {
+  try {
+    const r   = await fetch(`${API}/config`);
+    const cfg = await r.json();
+    const modelName = {
+      groq: cfg.llm_model, gemini: cfg.llm_model,
+      openai: cfg.llm_model, ollama: cfg.llm_model
+    }[cfg.llm_provider] || cfg.llm_provider;
+
+    document.getElementById('cfgFoot').innerHTML = `
+      <div class="cfg-pill">LLM <b>${cfg.llm_provider}</b></div>
+      <div class="cfg-pill">Embed <b>${cfg.embedding_provider}</b></div>
+      <div class="cfg-pill">Store <b>${cfg.vector_store}</b></div>
+      <div class="cfg-pill">Search <b>${cfg.web_search_provider}</b></div>`;
+  } catch {
+    document.getElementById('cfgFoot').innerHTML =
+      `<div class="cfg-pill" style="color:#ef4444;border-color:#ef4444">⚠ run python main.py</div>`;
+  }
+})();
+
+/* ─── Send query ───────────────────────────────────────────── */
+async function send() {
+  const ta  = document.getElementById('qInput');
+  const q   = ta.value.trim();
+  if (!q || busy) return;
+
+  ta.value = ''; grow(ta);
+  hideWelcome();
+  busy = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  addMsg('user', q);
+  const typingEl = addTyping();
+
+  try {
+    const res  = await fetch(`${API}/query`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({query: q})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Query failed');
+    typingEl.remove();
+    addMsg('assistant', data.answer, data.citations || []);
+    addHistory(q);
+  } catch (e) {
+    typingEl.remove();
+    addMsg('assistant', `⚠️ **Error:** ${e.message}`);
+  } finally {
+    busy = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+/* ─── Ingest helpers ───────────────────────────────────────── */
+async function sidebarIngest() {
+  const url = document.getElementById('sideUrl').value.trim();
+  if (!url) return;
+  const btn = document.getElementById('sideIngestBtn');
+  const txt = document.getElementById('sideIngestTxt');
+  btn.disabled = true;
+  txt.innerHTML = '<span class="spin"></span>';
+  await doIngest(url);
+  btn.disabled = false; txt.textContent = 'Ingest';
+  document.getElementById('sideUrl').value = '';
+}
+
+async function barIngest() {
+  const url = document.getElementById('urlBarInput').value.trim();
+  if (!url) return;
+  closeUrlBar();
+  await doIngest(url);
+  document.getElementById('urlBarInput').value = '';
+}
+
+async function handleFileUpload(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  toast(`Ingesting ${file.name}…`);
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/ingest/file`, {method:'POST', body:fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Upload failed');
+    pushSource({...d, source: file.name});
+    toast(`✓ ${d.chunks_added} chunks — ${file.name}`, 'ok');
+  } catch (e) { toast(`✗ ${e.message}`, 'err'); }
+  input.value = '';
+}
+
+async function doIngest(source) {
+  try {
+    const r = await fetch(`${API}/ingest`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({source})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Failed');
+    pushSource(d);
+    toast(`✓ ${d.chunks_added} chunks — ${d.source_type}`, 'ok');
+  } catch (e) { toast(`✗ ${e.message}`, 'err'); }
+}
+
+function pushSource(d) {
+  sources.push(d);
+  const sec  = document.getElementById('srcSection');
+  const list = document.getElementById('srcList');
+  const cnt  = document.getElementById('srcCount');
+  sec.style.display = 'block';
+  cnt.textContent = sources.length;
+  const color = COLORS[d.source_type] || COLORS.unknown;
+  const name  = (d.source||'').replace(/^https?:\/\//, '');
+  const short = name.length > 28 ? name.slice(0,25)+'…' : name;
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.innerHTML = `
+    <span class="chip-badge" style="background:${color}">${d.source_type.replace('_',' ')}</span>
+    <span class="chip-name" title="${d.source||''}">${short}</span>
+    <span class="chip-count">${d.chunks_added}c</span>`;
+  list.prepend(chip);
+}
+
+/* ─── DOM helpers ──────────────────────────────────────────── */
+function addMsg(role, text, citations = []) {
+  const inner = document.getElementById('msgInner');
+  const el    = document.createElement('div');
+  el.className = `msg ${role}`;
+
+  const avatar = role === 'user'
+    ? `<div class="avatar av-user">V</div>`
+    : `<div class="avatar av-bot">🔍</div>`;
+  const name  = role === 'user' ? 'You' : 'RAG Assistant';
+
+  el.innerHTML = `
+    <div class="msg-head">${avatar}<span class="msg-name">${name}</span></div>
+    <div class="msg-body">${renderText(text)}</div>
+    ${citations.length ? renderCites(citations) : ''}`;
+
+  inner.appendChild(el);
+  scrollEnd();
+}
+
+function addTyping() {
+  const inner = document.getElementById('msgInner');
+  const el    = document.createElement('div');
+  el.className = 'msg assistant';
+  el.innerHTML = `
+    <div class="msg-head">
+      <div class="avatar av-bot">🔍</div>
+      <span class="msg-name">RAG Assistant</span>
+    </div>
+    <div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  inner.appendChild(el);
+  scrollEnd();
+  return el;
+}
+
+function renderCites(cites) {
+  const cards = cites.map(c => {
+    const color = COLORS[c.source_type] || COLORS.unknown;
+    const title = (c.title || c.text || '').replace(/^\[.*?\]\s*/, '').split('—')[0].trim() || 'Source';
+    const url   = c.url || '';
+    const tag   = url ? `href="${url}" target="_blank" rel="noopener"` : '';
+    const extra = c.extra ? `<span class="cite-extra">${c.extra}</span>` : '';
+    const link  = url
+      ? `<span class="cite-url">${url.replace(/^https?:\/\//,'').slice(0,52)}${url.length>58?'…':''}</span>`
+      : '';
+    const extIcon = url
+      ? `<svg class="cite-ext-icon" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`
+      : '';
+    return `
+      <a class="cite-card" ${tag}>
+        <span class="cite-n">[${c.number}]</span>
+        <div class="cite-info">
+          <div class="cite-title">${esc(title)}</div>
+          <div class="cite-meta">
+            <span class="badge" style="background:${color}">${c.source_type.replace('_',' ')}</span>
+            ${extra}${link}
+          </div>
+        </div>
+        ${extIcon}
+      </a>`;
+  }).join('');
+
+  return `
+    <div class="cites">
+      <button class="cites-toggle" onclick="toggleCites(this)" aria-expanded="true">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        ${cites.length} Source${cites.length > 1 ? 's' : ''}
+      </button>
+      <div class="cite-list">${cards}</div>
+    </div>`;
+}
+
+function toggleCites(btn) {
+  const list = btn.nextElementSibling;
+  const open = list.style.display !== 'none';
+  list.style.display = open ? 'none' : 'flex';
+  btn.classList.toggle('closed', open);
+  btn.setAttribute('aria-expanded', String(!open));
+}
+
+function renderText(t) {
+  return t
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g,'<code style="background:var(--bg-input);padding:1px 6px;border-radius:4px;font-size:.88em;font-family:ui-monospace,monospace">$1</code>')
+    .replace(/\[(\d+)\]/g,'<sup style="color:var(--accent);font-weight:700;font-size:.78em" title="citation $1">[$1]</sup>')
+    .replace(/\n\n+/g,'</p><p style="margin-top:.8em">')
+    .replace(/\n/g,'<br>');
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ─── URL bar ──────────────────────────────────────────────── */
+function toggleUrlBar() {
+  const bar = document.getElementById('urlBar');
+  const btn = document.getElementById('urlToggle');
+  const open = bar.classList.toggle('open');
+  btn.classList.toggle('active', open);
+  if (open) setTimeout(() => document.getElementById('urlBarInput').focus(), 50);
+}
+function closeUrlBar() {
+  document.getElementById('urlBar').classList.remove('open');
+  document.getElementById('urlToggle').classList.remove('active');
+}
+
+/* ─── Misc ─────────────────────────────────────────────────── */
+function grow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+}
+
+function scrollEnd() {
+  const c = document.getElementById('msgScroll');
+  requestAnimationFrame(() => { c.scrollTop = c.scrollHeight; });
+}
+
+function hideWelcome() {
+  const w = document.getElementById('welcomeScreen');
+  if (w) w.style.display = 'none';
+}
+
+function fillInput(card) {
+  const text = card.querySelector('.ex-body').textContent;
+  const ta   = document.getElementById('qInput');
+  ta.value   = text; grow(ta); ta.focus();
+}
+
+function addHistory(q) {
+  const sec  = document.getElementById('histSection');
+  const list = document.getElementById('histList');
+  sec.style.display = 'block';
+  document.querySelectorAll('.hist-item').forEach(i => i.classList.remove('active'));
+  const el = document.createElement('div');
+  el.className = 'hist-item active';
+  el.title = q;
+  el.textContent = q.length > 38 ? q.slice(0,35)+'…' : q;
+  list.insertBefore(el, list.firstChild);
+  // keep max 12
+  while (list.children.length > 12) list.removeChild(list.lastChild);
+}
+
+function newChat() {
+  document.getElementById('msgInner').innerHTML = `
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-glyph">🔍</div>
+      <div>
+        <h1>What do you want to explore?</h1>
+        <p>Add sources in the sidebar, then ask anything about them.</p>
+      </div>
+      <div class="example-grid">
+        <div class="ex-card" onclick="fillInput(this)"><div class="ex-title">📺 YouTube</div><div class="ex-body">Summarize the key concepts from the video I added</div></div>
+        <div class="ex-card" onclick="fillInput(this)"><div class="ex-title">📄 Document</div><div class="ex-body">What are the main findings in this PDF?</div></div>
+        <div class="ex-card" onclick="fillInput(this)"><div class="ex-title">💻 Codebase</div><div class="ex-body">How does authentication work in this repo?</div></div>
+        <div class="ex-card" onclick="fillInput(this)"><div class="ex-title">🌐 Live Web</div><div class="ex-body">What are the latest developments on this topic?</div></div>
+      </div>
+    </div>`;
+}
+
+async function clearStore() {
+  if (!confirm('Delete ALL indexed sources? This cannot be undone.')) return;
+  try {
+    const r = await fetch(`${API}/store/clear`, { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Clear failed');
+    sources = [];
+    document.getElementById('srcList').innerHTML = '';
+    document.getElementById('srcCount').textContent = '0';
+    document.getElementById('srcSection').style.display = 'none';
+    toast('✓ All sources cleared — ready for fresh data', 'ok');
+  } catch (e) { toast(`✗ ${e.message}`, 'err'); }
+}
+
+let toastT;
+function toast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = `toast show ${type}`;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { t.className = 'toast'; }, 3200);
+}
+</script>
+</body>
+</html>

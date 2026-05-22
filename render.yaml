@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: multi-source-rag
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.1-8b-instant
+      - key: EMBEDDING_PROVIDER
+        value: huggingface
+      - key: HUGGINGFACE_EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+      - key: VECTOR_STORE
+        value: chroma
+      - key: WEB_SEARCH_PROVIDER
+        value: duckduckgo
+      - key: MAX_CHUNK_SIZE
+        value: "1000"
+      - key: TOP_K_RESULTS
+        value: "5"
+      - key: TEMPERATURE
+        value: "0.1"
+      # Set these as secret env vars in the Render dashboard:
+      # GROQ_API_KEY
