@@ -40,6 +40,7 @@ duckduckgo-search>=6.0.0
 
 # Source Loaders
 youtube-transcript-api>=0.6.0
+yt-dlp>=2024.1.0
 pymupdf>=1.24.0
 docx2txt>=0.8
 beautifulsoup4>=4.12.0
