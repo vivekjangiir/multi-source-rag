@@ -14,6 +14,8 @@ pinned: false
 
 Built with **LangChain + LangGraph**. Every provider (LLM, embeddings, vector store, web search) is swappable via a single `.env` file. **Runs entirely free by default.**
 
+🚀 **Live Demo:** [huggingface.co/spaces/vieveksharmaa/multi-source-rag](https://huggingface.co/spaces/vieveksharmaa/multi-source-rag)
+
 ---
 
 ## Table of Contents
