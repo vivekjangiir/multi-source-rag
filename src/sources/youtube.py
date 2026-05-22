@@ -367,58 +367,44 @@ def _entries_to_documents(
 def _web_search_fallback(video_id: str, url: str) -> List[Document]:
     """
     Last resort when all transcript methods fail on cloud platforms.
-    Gets the video title via oembed, then searches DuckDuckGo for web content
-    about the video and ingests those results instead.
 
-    Returns Documents tagged source_type='youtube_web_fallback' so citations
-    make clear these are web sources, not the raw transcript.
+    Gets the video title via oembed, then reuses the app's existing web_search()
+    function (DuckDuckGo / Tavily — whichever is configured) to find web content
+    about the video. Returns Documents tagged source_type='youtube_web_fallback'
+    so citations make clear these came from web sources, not the raw transcript.
     """
-    # Get title via oembed (this usually works even from cloud IPs)
+    from src.sources.web_search import web_search
+
+    # oembed works from cloud IPs — gives us the real video title
     title = _get_title(video_id, url)
 
-    from duckduckgo_search import DDGS
-    queries = [
-        f'"{title}" summary transcript',
-        f'"{title}" key points explained',
-        f'site:youtube.com "{title}"',
-    ]
+    # Single focused query is more reliable than three parallel ones
+    query = f"{title} explained summary key points"
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=config.MAX_CHUNK_SIZE,
-        chunk_overlap=config.CHUNK_OVERLAP,
-    )
-    docs: List[Document] = []
+    raw_docs = web_search(query, max_results=5)
 
-    with DDGS() as ddgs:
-        for query in queries:
-            try:
-                results = list(ddgs.text(query, max_results=3))
-                for r in results:
-                    text    = f"{r.get('title','')}\n\n{r.get('body','')}"
-                    src_url = r.get("href", "")
-                    for chunk in splitter.split_text(text):
-                        docs.append(Document(
-                            page_content=chunk,
-                            metadata={
-                                "source_type":   "youtube_web_fallback",
-                                "source_url":    src_url,
-                                "video_id":      video_id,
-                                "title":         title,
-                                "citation":      (
-                                    f"[YouTube/Web] {title} — "
-                                    f"web source: {src_url or 'DuckDuckGo search'}"
-                                ),
-                            },
-                        ))
-            except Exception:
-                continue
-
-    if not docs:
+    if not raw_docs:
         raise ValueError(
-            f"Could not fetch transcript or web content for: {url}\n"
-            "YouTube blocks transcript requests from cloud servers. "
-            "Please try uploading a PDF or pasting a web URL instead."
+            f"Web search returned no results for '{title}'. "
+            "Try pasting a direct web URL or uploading a PDF instead."
         )
+
+    # Re-tag documents so the UI shows the YouTube context
+    docs: List[Document] = []
+    for d in raw_docs:
+        src_url = d.metadata.get("source_url", "")
+        docs.append(Document(
+            page_content=d.page_content,
+            metadata={
+                **d.metadata,
+                "source_type": "youtube_web_fallback",
+                "video_id":    video_id,
+                "citation": (
+                    f"[YouTube→Web] \"{title}\" — "
+                    f"{d.metadata.get('title', src_url)}"
+                ),
+            },
+        ))
 
     return docs
 
