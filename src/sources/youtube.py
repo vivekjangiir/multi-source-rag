@@ -3,11 +3,23 @@ YouTube source loader.
 Fetches transcript, chunks it, and tags each chunk with video metadata + timestamp citation.
 """
 from __future__ import annotations
+import os
 import re
 from typing import List
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import config
+
+# ── SSL fix for cloud platforms (HuggingFace Spaces, Render, etc.) ─────────────
+# YouTube's CDN rejects connections with outdated CA bundles.
+# Point requests/urllib3 to certifi's up-to-date bundle if env vars not already set.
+try:
+    import certifi
+    _CERT_FILE = certifi.where()
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", _CERT_FILE)
+    os.environ.setdefault("SSL_CERT_FILE", _CERT_FILE)
+except ImportError:
+    pass
 
 
 def _extract_video_id(url: str) -> str:
@@ -59,9 +71,14 @@ def load_youtube(url: str) -> List[Document]:
     except Exception as e:
         err = str(e).lower()
         if "disabled" in err:
-            raise ValueError(f"Transcripts are disabled for video: {url}")
+            raise ValueError(f"Transcripts are disabled for this video: {url}")
         if "no transcript" in err or "could not retrieve" in err:
-            raise ValueError(f"No transcript found for video: {url}")
+            raise ValueError(f"No transcript found for video (video may be private, age-restricted, or transcript unavailable): {url}")
+        if "ssl" in err or "eof" in err or "max retries" in err or "connection" in err:
+            raise ValueError(
+                f"Network error reaching YouTube (SSL/connection issue on cloud host). "
+                f"Try a different video, or ingest a PDF/URL instead. Details: {e}"
+            )
         raise ValueError(f"Failed to fetch transcript: {e}")
 
     # Try to get video title via oembed (no API key needed)

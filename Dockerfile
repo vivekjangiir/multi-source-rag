@@ -11,11 +11,15 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
+    ca-certificates \
+    openssl \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Install Python dependencies first (layer-cached) ──────────
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --upgrade certifi requests
 
 # ── Pre-download the embedding model at BUILD time ─────────────
 # This caches the ~80 MB model into the image so ingestion never
@@ -38,6 +42,9 @@ ENV PORT=7860
 ENV CHROMA_PERSIST_DIR=/data/chroma_db
 ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
 ENV HF_HOME=/app/.cache/huggingface
+# Point requests/urllib to the system cert bundle so YouTube SSL works
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 # HuggingFace Spaces requires port 7860
 EXPOSE 7860
