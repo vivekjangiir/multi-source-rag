@@ -1,53 +1,59 @@
 # ──────────────────────────────────────────────────────────────
-#  Multi-Source RAG — Python Dependencies
-#  Install all:  pip install -r requirements.txt
+#  Multi-Source RAG — Core Dependencies (default free stack)
+#  Python 3.11 required
 # ──────────────────────────────────────────────────────────────
 
-# Core framework
+# Core LangChain
 langchain>=0.3.0
 langchain-core>=0.3.0
 langchain-community>=0.3.0
 langchain-text-splitters>=0.3.0
 langgraph>=0.2.0
 
-# ── LLM Providers (install only what you use) ──────────────────
-langchain-groq>=0.2.0           # Free tier: https://console.groq.com
-langchain-google-genai>=2.0.0   # Free tier: https://aistudio.google.com
-langchain-openai>=0.2.0         # Paid
-langchain-ollama>=0.2.0         # Local / free
+# LLM — Groq (free default)
+langchain-groq>=0.2.0
 
-# ── Embeddings ─────────────────────────────────────────────────
-langchain-huggingface>=0.1.0    # Free local embeddings (default)
-sentence-transformers>=3.0.0    # Required for HuggingFace embeddings
+# LLM — optional extras (uncomment to enable)
+# langchain-google-genai>=2.0.0
+# langchain-openai>=0.2.0
+# langchain-ollama>=0.2.0
 
-# ── Vector Stores ──────────────────────────────────────────────
-langchain-chroma>=0.1.0         # Free local (default)
+# Embeddings — HuggingFace local (free default)
+langchain-huggingface>=0.1.0
+sentence-transformers>=3.0.0
+
+# Vector Store — ChromaDB local (free default)
+langchain-chroma>=0.1.0
 chromadb>=0.5.0
-langchain-qdrant>=0.1.0         # Free local or cloud
-qdrant-client>=1.9.0
-langchain-pinecone>=0.2.0       # Cloud (free tier available)
-pinecone-client>=4.0.0
 
-# ── Web Search ─────────────────────────────────────────────────
-duckduckgo-search>=6.0.0        # Free, no API key (default)
-tavily-python>=0.3.0            # Free tier: 1000 searches/month
-google-search-results>=2.4.0    # SerpAPI (paid)
+# Vector Store — optional extras (uncomment to enable)
+# langchain-qdrant>=0.1.0
+# qdrant-client>=1.9.0
+# langchain-pinecone>=0.2.0
+# pinecone-client>=4.0.0
 
-# ── Source Loaders ─────────────────────────────────────────────
-youtube-transcript-api>=0.6.0   # YouTube transcripts (free)
-pymupdf>=1.24.0                 # PDF parsing (free)
-docx2txt>=0.8                   # DOCX parsing (free)
-beautifulsoup4>=4.12.0          # Web scraping
-gitpython>=3.1.0                # GitHub repo cloning
+# Web Search — DuckDuckGo (free, no key needed)
+duckduckgo-search>=6.0.0
 
-# ── API & Frontend ─────────────────────────────────────────────
+# Web Search — optional extras (uncomment to enable)
+# tavily-python>=0.3.0
+
+# Source Loaders
+youtube-transcript-api>=0.6.0
+pymupdf>=1.24.0
+docx2txt>=0.8
+beautifulsoup4>=4.12.0
+requests>=2.32.0
+
+# GitHub loader — optional (uncomment to enable)
+# gitpython>=3.1.0
+
+# API & Server
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
-streamlit>=1.38.0
-python-multipart>=0.0.9         # File uploads in FastAPI
-aiofiles>=23.0.0                # Required for FastAPI FileResponse
+python-multipart>=0.0.9
+aiofiles>=23.0.0
 
-# ── Utilities ──────────────────────────────────────────────────
+# Utilities
 python-dotenv>=1.0.0
 pydantic>=2.0.0
-requests>=2.32.0
