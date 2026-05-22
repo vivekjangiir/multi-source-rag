@@ -98,6 +98,12 @@ def ingest_source(req: IngestRequest):
         return result
     except HTTPException:
         raise
+    except ValueError as e:
+        # ValueError = expected user-facing errors (bad URL, blocked, etc.)
+        # Return 400 with the clean message, no stack trace needed
+        msg = str(e)
+        print(f"[ingest] ValueError — {msg[:120]}")
+        raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
         detail = f"{type(e).__name__}: {e}"
         print(f"[ingest] ERROR — {detail}")

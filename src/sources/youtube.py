@@ -471,16 +471,26 @@ def load_youtube(url: str) -> List[Document]:
     if entries:
         return _entries_to_documents(entries, title, video_id, url)
 
-    # ── Attempt 4: Web search fallback (always works on cloud) ────────────────
-    # All transcript methods failed (YouTube blocking cloud IP).
-    # Fall back to searching the web for content about this video.
-    try:
-        return _web_search_fallback(video_id, url)
-    except Exception as e:
-        errors.append(f"web-fallback: {e}")
+    # ── Attempt 4: Web search fallback ────────────────────────────────────────
+    # Only useful if we know the video's real title — without it we'd just get
+    # generic YouTube pages which mislead the LLM more than they help.
+    real_title = _get_title(video_id, url)
+    if not real_title.startswith("YouTube Video ("):
+        try:
+            return _web_search_fallback(video_id, url)
+        except Exception as e:
+            errors.append(f"web-fallback: {e}")
 
-    # ── Truly nothing worked ───────────────────────────────────────────────────
+    # ── Nothing worked → clear, actionable error ───────────────────────────────
     raise ValueError(
-        f"Could not load YouTube video {url}. All methods failed.\n"
-        + "\n".join(f"  • {e}" for e in errors)
+        "⚠️ YouTube transcripts are blocked on this server.\n\n"
+        "YouTube blocks all transcript requests from cloud providers "
+        "(HuggingFace, AWS, GCP, etc.). This is a YouTube policy — "
+        "not a bug in the app.\n\n"
+        "✅ What you can do instead:\n"
+        "  • Upload a PDF or Word doc on the same topic\n"
+        "  • Paste a web article URL about the video's topic\n"
+        "  • Ask a question directly — live web search will find relevant sources\n"
+        "  • Run the app locally (transcripts work fine from home/office IPs)\n\n"
+        f"Video: {url}"
     )
