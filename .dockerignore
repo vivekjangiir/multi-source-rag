@@ -1,0 +1,14 @@
+# Don't copy local dev artifacts into the Docker image
+.env
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+data/
+.cache/
+*.log
+render.yaml
+runtime.txt
+start.py
+debug_test.py

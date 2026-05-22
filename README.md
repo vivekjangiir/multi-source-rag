@@ -1,3 +1,13 @@
+---
+title: Multi Source RAG with Citations
+emoji: 🔍
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🔍 Multi-Source RAG with Citations
 
 A production-quality Retrieval-Augmented Generation app that pulls from **multiple source types simultaneously** — YouTube videos, PDFs, web pages, GitHub repos, books, and live web search — and always shows **exactly which source each answer came from**.
