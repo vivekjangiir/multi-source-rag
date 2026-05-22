@@ -5,12 +5,15 @@ Fetches transcript, chunks it, and tags each chunk with video metadata + timesta
 Strategy (most → least reliable on cloud platforms):
   1. youtube-transcript-api  — fast, direct; blocked by YouTube on some cloud IPs
   2. yt-dlp                  — mimics a real browser; bypasses most IP blocks
+  3. Invidious proxy          — requests go through a third-party server, never from
+                               our blocked cloud IP — most reliable on HF/Render/Railway
 """
 from __future__ import annotations
 import json
 import os
 import re
 import ssl
+import urllib.parse
 import urllib.request
 from typing import List, Tuple
 
@@ -198,6 +201,96 @@ def _fetch_via_ytdlp(video_id: str, url: str) -> Tuple[List[dict], str]:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Method 3: Invidious proxy (most reliable on cloud — bypasses IP blocks)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Public Invidious instances — tried in order, first healthy one wins.
+# These are community-run YouTube frontends; requests come FROM their servers,
+# so YouTube's cloud-IP block never applies to us.
+_INVIDIOUS_INSTANCES = [
+    "https://inv.nadeko.net",
+    "https://invidious.io.lol",
+    "https://yewtu.be",
+    "https://invidious.nerdvpn.de",
+    "https://inv.tux.pizza",
+]
+
+
+def _invidious_request(url: str, timeout: int = 10) -> bytes:
+    ctx = _build_ssl_ctx()
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; RAG-app/1.0)",
+            "Accept":     "application/json, text/vtt, */*",
+        },
+    )
+    with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _fetch_via_invidious(video_id: str) -> Tuple[List[dict], str]:
+    """
+    Fetch captions via a public Invidious instance.
+    Returns (transcript_entries, video_title).
+
+    The Invidious API endpoints used:
+      GET /api/v1/captions/{videoId}          → lists available caption tracks
+      GET /api/v1/captions/{videoId}?label=X  → returns the VTT for that track
+      GET /api/v1/videos/{videoId}            → returns video metadata (title etc.)
+    """
+    last_error = "No Invidious instances responded"
+
+    for instance in _INVIDIOUS_INSTANCES:
+        try:
+            # ── 1. Get caption track list ──────────────────────────────────────
+            caps_raw  = _invidious_request(f"{instance}/api/v1/captions/{video_id}")
+            caps_data = json.loads(caps_raw)
+            captions  = caps_data.get("captions", [])
+
+            if not captions:
+                last_error = f"{instance}: no captions available for this video"
+                continue
+
+            # ── 2. Pick the best English track ────────────────────────────────
+            chosen = None
+            for c in captions:
+                label = c.get("label", "").lower()
+                code  = c.get("languageCode", "")
+                if "english" in label or code.startswith("en"):
+                    # Prefer auto-generated only as a last resort
+                    if chosen is None or "auto" not in label:
+                        chosen = c
+            if chosen is None:
+                chosen = captions[0]  # Take whatever is there
+
+            # ── 3. Fetch the VTT for that track ───────────────────────────────
+            label_param = urllib.parse.quote(chosen["label"])
+            vtt_raw     = _invidious_request(
+                f"{instance}/api/v1/captions/{video_id}?label={label_param}"
+            )
+            entries = _parse_vtt(vtt_raw.decode("utf-8", errors="replace"))
+            if not entries:
+                last_error = f"{instance}: VTT parsed but no entries found"
+                continue
+
+            # ── 4. Get video title ─────────────────────────────────────────────
+            try:
+                meta  = json.loads(_invidious_request(f"{instance}/api/v1/videos/{video_id}"))
+                title = meta.get("title", f"YouTube Video ({video_id})")
+            except Exception:
+                title = f"YouTube Video ({video_id})"
+
+            return entries, title
+
+        except Exception as exc:
+            last_error = f"{instance}: {exc}"
+            continue  # Try next instance
+
+    raise ValueError(f"All Invidious instances failed. Last error: {last_error}")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Title helper (oembed — no API key needed)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -275,8 +368,11 @@ def load_youtube(url: str) -> List[Document]:
     """
     Load a YouTube video transcript and return chunked Documents with citations.
 
-    Tries youtube-transcript-api first (fast), then yt-dlp (more reliable on
-    cloud platforms where YouTube blocks direct requests).
+    Three-method cascade (most → least reliable on cloud platforms):
+      1. youtube-transcript-api  — fast, works locally and some cloud IPs
+      2. yt-dlp                  — browser-like, bypasses many IP blocks
+      3. Invidious proxy         — requests go from a third-party server,
+                                   completely bypasses YouTube's cloud-IP block
     """
     video_id = _extract_video_id(url)
     entries: List[dict] = []
@@ -289,31 +385,33 @@ def load_youtube(url: str) -> List[Document]:
         entries = _fetch_via_transcript_api(video_id)
         title   = _get_title(video_id, url)
     except Exception as e:
-        errors.append(f"youtube-transcript-api: {e}")
+        errors.append(f"[1/3 youtube-transcript-api] {e}")
 
-    # ── Attempt 2: yt-dlp (fallback for cloud IP blocks) ──────────────────────
+    # ── Attempt 2: yt-dlp ─────────────────────────────────────────────────────
     if not entries:
         try:
             import yt_dlp  # noqa: F401
             entries, title = _fetch_via_ytdlp(video_id, url)
         except ImportError:
-            errors.append("yt-dlp not installed — run: pip install yt-dlp")
+            errors.append("[2/3 yt-dlp] not installed")
         except Exception as e:
-            errors.append(f"yt-dlp: {e}")
+            errors.append(f"[2/3 yt-dlp] {e}")
 
-    # ── Both methods failed ────────────────────────────────────────────────────
+    # ── Attempt 3: Invidious proxy (bypasses cloud IP blocks entirely) ─────────
+    if not entries:
+        try:
+            entries, title = _fetch_via_invidious(video_id)
+        except Exception as e:
+            errors.append(f"[3/3 Invidious] {e}")
+
+    # ── All methods failed ─────────────────────────────────────────────────────
     if not entries:
         combined = " | ".join(errors)
-        # Friendly message for the most common cloud-platform failure
-        if any(kw in combined.lower() for kw in ["ssl", "eof", "connection", "max retries"]):
-            raise ValueError(
-                "YouTube is blocking transcript requests from this server's IP. "
-                "This is a known restriction on cloud platforms. "
-                "Please try a different video, or upload a PDF/URL instead."
-            )
-        raise ValueError(f"Could not fetch transcript. Errors: {combined}")
-
-    if not entries:
-        raise ValueError(f"Transcript was empty for video: {url}")
+        raise ValueError(
+            f"Could not fetch transcript for {url}.\n\n"
+            f"All three methods failed:\n{combined}\n\n"
+            f"Tip: The video may have captions disabled, be private, or age-restricted. "
+            f"Try a different video, or ingest a PDF/URL instead."
+        )
 
     return _entries_to_documents(entries, title, video_id, url)
