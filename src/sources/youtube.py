@@ -69,15 +69,26 @@ def _fetch_via_transcript_api(video_id: str) -> List[dict]:
     """
     Returns list of {text, start} dicts.
     Raises on any failure so the caller can try the next method.
+
+    Handles both:
+      - v0.x: entries were plain dicts  {"text": ..., "start": ...}
+      - v1.x: entries are FetchedTranscriptSnippet dataclasses with .text / .start
+               (hasattr fails on dataclass fields — use getattr with a sentinel instead)
     """
     from youtube_transcript_api import YouTubeTranscriptApi
     api = YouTubeTranscriptApi()
     entries = api.fetch(video_id)
     result = []
+    _MISSING = object()
     for e in entries:
-        text  = e.text  if hasattr(e, "text")  else e["text"]
-        start = e.start if hasattr(e, "start") else e["start"]
-        result.append({"text": text, "start": float(start)})
+        # dataclass attributes — getattr works; dict keys — use [] fallback
+        text  = getattr(e, "text",  _MISSING)
+        start = getattr(e, "start", _MISSING)
+        if text is _MISSING:
+            text  = e["text"]
+        if start is _MISSING:
+            start = e["start"]
+        result.append({"text": str(text), "start": float(start)})
     return result
 
 
