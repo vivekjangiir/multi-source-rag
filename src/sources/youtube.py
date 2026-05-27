@@ -176,6 +176,11 @@ def _fetch_via_ytdlp(video_id: str, url: str) -> Tuple[List[dict], str]:
         # Ask yt-dlp to fetch subtitle info without writing files
         "writesubtitles": False,
         "writeautomaticsub": False,
+        # Fix SSL EOF errors on cloud platforms (HuggingFace, Render, Railway)
+        # YouTube terminates TLS connections from cloud IPs mid-handshake.
+        "nocheckcertificate": True,
+        # Use a browser-like TLS fingerprint to reduce bot detection
+        "impersonate": "chrome",
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -218,16 +223,20 @@ def _fetch_via_ytdlp(video_id: str, url: str) -> Tuple[List[dict], str]:
 # Public Invidious instances — tried in order, first healthy one wins.
 # These are community-run YouTube frontends; requests come FROM their servers,
 # so YouTube's cloud-IP block never applies to us.
+# List updated 2026-05 — check https://api.invidious.io for current status.
 _INVIDIOUS_INSTANCES = [
     "https://inv.nadeko.net",
-    "https://invidious.io.lol",
+    "https://invidious.privacyredirect.com",
     "https://yewtu.be",
-    "https://invidious.nerdvpn.de",
+    "https://iv.datura.network",
+    "https://invidious.fdn.fr",
     "https://inv.tux.pizza",
+    "https://invidious.io.lol",
+    "https://invidious.nerdvpn.de",
 ]
 
 
-def _invidious_request(url: str, timeout: int = 10) -> bytes:
+def _invidious_request(url: str, timeout: int = 15) -> bytes:
     ctx = _build_ssl_ctx()
     req = urllib.request.Request(
         url,
