@@ -24,6 +24,11 @@ Built with **LangChain + LangGraph**. Every provider (LLM, embeddings, vector st
 2. [Architecture](#2-architecture)
 3. [Local Setup](#3-local-setup)
 4. [LLM Providers](#4-llm-providers)
+   - [Groq](#41-groq--default-recommended)
+   - [NVIDIA NIM](#42-nvidia-nim-free-100-models)
+   - [Google Gemini](#43-google-gemini)
+   - [OpenAI](#44-openai)
+   - [Ollama (Local)](#45-ollama-local)
 5. [Embedding Providers](#5-embedding-providers)
 6. [Vector Stores](#6-vector-stores)
 7. [Web Search Providers](#7-web-search-providers)
@@ -221,7 +226,52 @@ GROQ_MODEL=llama-3.1-8b-instant   # fast, good quality
 
 ---
 
-### 4.2 Google Gemini
+### 4.2 NVIDIA NIM (free, 100+ models)
+
+**What:** NVIDIA's inference microservices platform — one API endpoint that hosts 100+ open-source models (Llama, Mistral, DeepSeek, Qwen, Gemma, and more) on NVIDIA's own GPU infrastructure.
+
+**Why use it:**
+- Completely free — no credit card required (just sign up)
+- 100+ models from every major family in one place
+- Great quality — some models (DeepSeek R1, Llama 3.1 405B) match GPT-4 quality
+- OpenAI-compatible API — easy to integrate
+- ~40 requests/minute on the free tier
+
+**Why not:** Rate limited on the free tier; requires sign-up.
+
+**Setup:**
+1. Go to [build.nvidia.com](https://build.nvidia.com) → sign in → top-right menu → **API Key**
+2. Copy your `nvapi-...` key
+3. Set in `.env`:
+
+```env
+LLM_PROVIDER=nvidia
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_MODEL=meta/llama-3.1-8b-instruct   # fast, good quality
+```
+
+**On HuggingFace Spaces:** Settings → Variables and secrets → add `NVIDIA_API_KEY` as a secret, then add `LLM_PROVIDER=nvidia` as a regular variable.
+
+**Popular model choices:**
+
+| Model ID | Type | Speed | Quality |
+|---|---|---|---|
+| `meta/llama-3.1-8b-instruct` | General | ⚡⚡⚡ | ⭐⭐⭐ |
+| `meta/llama-3.3-70b-instruct` | General | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+| `meta/llama-3.1-405b-instruct` | General | ⚡ | ⭐⭐⭐⭐⭐ |
+| `deepseek-ai/deepseek-r1` | Reasoning | ⚡ | ⭐⭐⭐⭐⭐ |
+| `deepseek-ai/deepseek-r1-0528` | Reasoning | ⚡ | ⭐⭐⭐⭐⭐ |
+| `qwen/qwen2.5-72b-instruct` | General | ⚡⚡ | ⭐⭐⭐⭐ |
+| `qwen/qwen2.5-coder-32b-instruct` | Coding | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+| `mistralai/mistral-large-2-instruct` | General | ⚡⚡ | ⭐⭐⭐⭐ |
+| `nvidia/llama-3.1-nemotron-ultra-253b-v1` | Reasoning | ⚡ | ⭐⭐⭐⭐⭐ |
+| `moonshotai/kimi-k2` | General | ⚡⚡ | ⭐⭐⭐⭐⭐ |
+
+> Full catalogue of 100+ models: [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover)
+
+---
+
+### 4.3 Google Gemini
 
 **What:** Google's multimodal model family. The free tier is more generous than OpenAI's.
 
@@ -250,7 +300,7 @@ langchain-google-genai>=2.0.0
 
 ---
 
-### 4.3 OpenAI
+### 4.4 OpenAI
 
 **What:** GPT-4o, GPT-4o-mini, GPT-3.5-turbo. The industry standard.
 
@@ -279,7 +329,7 @@ langchain-openai>=0.2.0
 
 ---
 
-### 4.4 Ollama (Local)
+### 4.5 Ollama (Local)
 
 **What:** Run open-source models entirely on your own machine. No API key, no cost, no data leaves your computer.
 
@@ -408,6 +458,47 @@ OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 EMBEDDING_PROVIDER=gemini
 GOOGLE_API_KEY=AIza...
 ```
+
+---
+
+### 5.5 NVIDIA NIM Embeddings
+
+**What:** NVIDIA's hosted embedding models via the NIM API. High-quality, purpose-built for retrieval tasks.
+
+**Why use it:**
+- No local memory usage — all inference is remote
+- Strong retrieval quality (nv-embedqa models are fine-tuned for Q&A)
+- Free on NVIDIA's free tier (same `NVIDIA_API_KEY`)
+
+**Why not:** Adds API latency on every ingest and query; uses NIM rate limit quota. For most RAG apps the default HuggingFace embeddings are good enough.
+
+**Setup:**
+
+```env
+EMBEDDING_PROVIDER=nvidia
+NVIDIA_API_KEY=nvapi-...
+NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5   # recommended
+```
+
+**Model options:**
+
+| Model ID | Dimensions | Best for |
+|---|---|---|
+| `nvidia/nv-embedqa-e5-v5` | 1024 | General Q&A retrieval ✅ recommended |
+| `snowflake/arctic-embed-l` | 1024 | Long documents |
+| `nvidia/nv-embed-v1` | 4096 | Maximum quality, higher cost |
+| `nvidia/llama-3.2-nv-embedqa-1b-v2` | 2048 | Fast, good quality |
+| `intfloat/multilingual-e5-large` | 1024 | Multi-language content |
+
+> ⚠️ If you switch embedding models after ingesting documents, delete `./data/chroma_db/` and re-ingest — vectors from different models are incompatible.
+
+**Pinecone dimension guide for NVIDIA models:**
+
+| Model | Dimension to set in Pinecone |
+|---|---|
+| `nvidia/nv-embedqa-e5-v5` | 1024 |
+| `nvidia/nv-embed-v1` | 4096 |
+| `nvidia/llama-3.2-nv-embedqa-1b-v2` | 2048 |
 
 ---
 
@@ -716,9 +807,12 @@ Automatically triggered by the query router when it detects time-sensitive keywo
    git push hf main --force
    ```
 
-4. Add your secret API key:
+4. Add your secret API keys:
    - Space → **Settings** → **Variables and Secrets** → **New secret**
-   - Key: `GROQ_API_KEY`, Value: your key
+   - Add `GROQ_API_KEY` = your Groq key (if using Groq)
+   - Add `NVIDIA_API_KEY` = your NIM key (if using NVIDIA)
+   - To switch provider: add a regular variable `LLM_PROVIDER=nvidia` (or `groq`, `gemini`, etc.)
+   - Leave `EMBEDDING_PROVIDER` unset — the default `huggingface` runs locally on the Space with no API calls needed
 
 5. Your app is live at:
    `https://YOUR_HF_USERNAME-multi-source-rag.hf.space`
@@ -958,22 +1052,30 @@ Copy `.env.example` to `.env` and set these values.
 
 ```env
 # ── LLM ───────────────────────────────────────────────────────────────────
-LLM_PROVIDER=groq              # groq | gemini | openai | ollama
-GROQ_API_KEY=gsk_...           # https://console.groq.com
+LLM_PROVIDER=groq              # groq | nvidia | gemini | openai | ollama
+GROQ_API_KEY=gsk_...           # https://console.groq.com (free)
 GROQ_MODEL=llama-3.1-8b-instant
 
-GOOGLE_API_KEY=AIza...         # https://aistudio.google.com
+NVIDIA_API_KEY=nvapi-...       # https://build.nvidia.com (free, no credit card)
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+NVIDIA_MODEL=meta/llama-3.1-8b-instruct
+                               # other options: meta/llama-3.3-70b-instruct
+                               #                deepseek-ai/deepseek-r1
+                               #                qwen/qwen2.5-coder-32b-instruct
+
+GOOGLE_API_KEY=AIza...         # https://aistudio.google.com (free tier)
 GEMINI_MODEL=gemini-1.5-flash
 
-OPENAI_API_KEY=sk-...          # https://platform.openai.com
+OPENAI_API_KEY=sk-...          # https://platform.openai.com (paid)
 OPENAI_MODEL=gpt-4o-mini
 
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3
 
 # ── Embeddings ────────────────────────────────────────────────────────────
-EMBEDDING_PROVIDER=huggingface  # huggingface | openai | ollama | gemini
+EMBEDDING_PROVIDER=huggingface  # huggingface | nvidia | openai | ollama | gemini
 HUGGINGFACE_EMBEDDING_MODEL=all-MiniLM-L6-v2
+NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5   # or: snowflake/arctic-embed-l
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
@@ -1192,8 +1294,26 @@ Switch to a different model or provider temporarily:
 ```env
 GROQ_MODEL=gemma2-9b-it        # Different quota pool
 # or
+LLM_PROVIDER=nvidia            # NVIDIA NIM free tier
+NVIDIA_MODEL=meta/llama-3.1-8b-instruct
+# or
 LLM_PROVIDER=gemini            # Google's free tier
 ```
+
+---
+
+**Q: NVIDIA NIM rate limit / 429 error**
+The free tier allows ~40 requests/minute. For a RAG app this is usually fine since queries are user-driven. If you hit limits:
+```env
+NVIDIA_MODEL=meta/llama-3.2-3b-instruct   # smaller model, separate quota pool
+# or switch back temporarily
+LLM_PROVIDER=groq
+```
+
+---
+
+**Q: NVIDIA API key not working**
+Make sure the key starts with `nvapi-` and was copied from [build.nvidia.com](https://build.nvidia.com) (not from the NVIDIA developer portal, which is a different system). On HuggingFace Spaces, add it as a **Secret** (not a regular variable) in Settings → Variables and secrets.
 
 ---
 
@@ -1221,7 +1341,9 @@ uvicorn main:app --port 8001
 | **LLM orchestration** | LangChain | Standardized interface across all LLM providers |
 | **Pipeline graph** | LangGraph | Stateful, cyclical RAG pipeline with parallel retrieval |
 | **LLM (default)** | Groq + Llama 3.1 | Fastest free inference; no GPU needed |
+| **LLM (alternative)** | NVIDIA NIM | 100+ models, free tier, OpenAI-compatible |
 | **Embeddings (default)** | HuggingFace sentence-transformers | Free, local, no API key |
+| **Embeddings (alternative)** | NVIDIA NIM Embeddings | API-based, fine-tuned for retrieval Q&A |
 | **Vector store (default)** | ChromaDB | Zero-config local persistence |
 | **Web search (default)** | DuckDuckGo | No API key, no rate limit signup |
 | **YouTube transcripts** | youtube-transcript-api | No YouTube API key needed |
