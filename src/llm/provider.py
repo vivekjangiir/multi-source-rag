@@ -65,10 +65,24 @@ def get_llm() -> BaseChatModel:
             temperature=config.TEMPERATURE,
         )
 
+    elif provider == "nvidia":
+        from langchain_nvidia_ai_endpoints import ChatNVIDIA
+        if not config.NVIDIA_API_KEY:
+            raise ValueError(
+                "NVIDIA_API_KEY not set. "
+                "Get a free key (no credit card) at https://build.nvidia.com"
+            )
+        return ChatNVIDIA(
+            api_key=config.NVIDIA_API_KEY,
+            base_url=config.NVIDIA_BASE_URL,
+            model=config.NVIDIA_MODEL,
+            temperature=config.TEMPERATURE,
+        )
+
     else:
         raise ValueError(
             f"Unknown LLM_PROVIDER: '{provider}'. "
-            "Choose from: groq, gemini, openai, ollama"
+            "Choose from: groq, gemini, openai, ollama, nvidia"
         )
 
 
@@ -122,8 +136,21 @@ def get_embeddings() -> Embeddings:
             google_api_key=config.GOOGLE_API_KEY,
         )
 
+    elif provider == "nvidia":
+        from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings
+        if not config.NVIDIA_API_KEY:
+            raise ValueError(
+                "NVIDIA_API_KEY not set. "
+                "Get a free key (no credit card) at https://build.nvidia.com"
+            )
+        return NVIDIAEmbeddings(
+            api_key=config.NVIDIA_API_KEY,
+            base_url=config.NVIDIA_BASE_URL,
+            model=config.NVIDIA_EMBEDDING_MODEL,
+        )
+
     else:
         raise ValueError(
             f"Unknown EMBEDDING_PROVIDER: '{provider}'. "
-            "Choose from: huggingface, openai, ollama, gemini"
+            "Choose from: huggingface, openai, ollama, gemini, nvidia"
         )

@@ -13,6 +13,9 @@ langgraph>=0.2.0
 # LLM — Groq (free default)
 langchain-groq>=0.2.0
 
+# LLM — NVIDIA NIM (free, 100+ models, no credit card)
+langchain-nvidia-ai-endpoints>=0.3.0
+
 # LLM — optional extras (uncomment to enable)
 # langchain-google-genai>=2.0.0
 # langchain-openai>=0.2.0
