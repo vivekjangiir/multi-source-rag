@@ -127,7 +127,7 @@ Source URL / File
 ### Step 1 — Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/multi-source-rag.git
+git clone https://github.com/vieveksharmaa/multi-source-rag.git
 cd multi-source-rag
 ```
 
