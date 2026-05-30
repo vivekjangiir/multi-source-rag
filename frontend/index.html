@@ -11,28 +11,28 @@
    DESIGN TOKENS
 ═══════════════════════════════════════════════════════════ */
 :root {
-  --bg-app:          #171717;
-  --bg-sidebar:      #212121;
-  --bg-chat:         #212121;
-  --bg-input:        #2f2f2f;
-  --bg-hover:        #2a2a2a;
-  --bg-active:       #303030;
-  --bg-user-msg:     #2f2f2f;
-  --bg-card:         #2a2a2a;
+  --bg-app:          #0a0a0a;
+  --bg-sidebar:      #0f0f0f;
+  --bg-chat:         #0f0f0f;
+  --bg-input:        #181818;
+  --bg-hover:        #141414;
+  --bg-active:       #1a1a1a;
+  --bg-user-msg:     #181818;
+  --bg-card:         #141414;
 
-  --border:          #3a3a3a;
-  --border-subtle:   #272727;
+  --border:          #252525;
+  --border-subtle:   #161616;
 
-  --text-primary:    #ececec;
-  --text-secondary:  #9b9b9b;
-  --text-muted:      #5a5a5a;
+  --text-primary:    #e8e8e8;
+  --text-secondary:  #8a8a8a;
+  --text-muted:      #484848;
 
   --accent:          #10a37f;
   --accent-hover:    #0e8f70;
-  --accent-dim:      rgba(16,163,127,.15);
+  --accent-dim:      rgba(16,163,127,.12);
 
   --yellow: #f59e0b; --red: #ef4444; --blue: #3b82f6;
-  --green: #10b981;  --gray: #6b7280; --purple: #8b5cf6;
+  --green: #10b981;  --gray: #6b7280; --slate: #64748b;
 
   --r-sm:  6px;  --r-md: 10px; --r-lg: 16px; --r-xl: 24px;
   --sidebar-w: 264px;
@@ -276,7 +276,7 @@ button, input, textarea { font-family: inherit; }
   display: grid; place-items: center;
   font-size: 12px; font-weight: 700; flex-shrink: 0;
 }
-.av-user  { background: #5865f2; color: #fff; }
+.av-user  { background: #3a3a3a; color: #e8e8e8; }
 .av-bot   { background: var(--accent); color: #fff; font-size: 13px; }
 .msg-name { font-size: 13px; font-weight: 600; }
 
@@ -437,7 +437,7 @@ button, input, textarea { font-family: inherit; }
 .toast {
   position: fixed; bottom: 96px; left: 50%;
   transform: translateX(-50%) translateY(12px);
-  background: #1e1e1e; border: 1px solid var(--border);
+  background: #111111; border: 1px solid var(--border);
   color: var(--text-primary); padding: 8px 18px;
   border-radius: var(--r-md); font-size: 13px;
   opacity: 0; transition: all .25s ease;
@@ -458,6 +458,33 @@ button, input, textarea { font-family: inherit; }
   border-radius: 50%; animation: spin .6s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════
+   PROVIDER BANNER
+═══════════════════════════════════════════════════════════ */
+.provider-banner {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  justify-content: center; margin-top: 4px;
+}
+.prov-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+.prov-chip.highlight {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+.prov-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.compat-note {
+  font-size: 11px; color: var(--text-muted);
+  text-align: center; margin-top: 6px;
+}
+.compat-note a { color: var(--accent); text-decoration: underline; }
 
 /* ═══════════════════════════════════════════════════════════
    RESPONSIVE
@@ -555,6 +582,15 @@ button, input, textarea { font-family: inherit; }
             <h1>What do you want to explore?</h1>
             <p>Add sources in the sidebar — YouTube videos, PDFs, GitHub repos, or live web search — then ask anything.</p>
           </div>
+          <div class="provider-banner">
+            <div class="prov-chip highlight"><span class="prov-dot"></span>Anthropic Claude</div>
+            <div class="prov-chip highlight"><span class="prov-dot"></span>Google Gemini</div>
+            <div class="prov-chip highlight"><span class="prov-dot"></span>OpenAI GPT</div>
+            <div class="prov-chip"><span class="prov-dot"></span>Groq</div>
+            <div class="prov-chip"><span class="prov-dot"></span>Ollama</div>
+          </div>
+          <p class="compat-note">Set <code style="background:var(--bg-input);padding:1px 5px;border-radius:3px;font-size:10px">LLM_PROVIDER</code> in your <code style="background:var(--bg-input);padding:1px 5px;border-radius:3px;font-size:10px">.env</code> — all providers work · <a href="https://github.com/vieveksharmaa/multi-source-rag" target="_blank" rel="noopener">GitHub repo ↗</a></p>
+
           <div class="example-grid">
             <div class="ex-card" onclick="fillInput(this)">
               <div class="ex-title">📺  YouTube</div>
@@ -641,7 +677,7 @@ let sources = [];
 const COLORS = {
   youtube:'#ef4444', pdf:'#f59e0b', docx:'#3b82f6',
   web_url:'#10b981', web_search:'#10b981',
-  github:'#6b7280', text:'#8b5cf6', unknown:'#6b7280'
+  github:'#6b7280', text:'#64748b', unknown:'#6b7280'
 };
 
 /* ─── Boot ─────────────────────────────────────────────────── */

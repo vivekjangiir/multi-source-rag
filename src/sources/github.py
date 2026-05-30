@@ -64,8 +64,29 @@ def load_github(repo_url: str, branch: str = "main") -> List[Document]:
 
     docs = []
     with tempfile.TemporaryDirectory() as tmp_dir:
-        print(f"Cloning {repo_label} (branch: {branch})...")
-        Repo.clone_from(clone_url, tmp_dir, branch=branch, depth=1)
+        # Try specified branch, then common fallbacks, then let git pick default
+        cloned_branch = branch
+        clone_errors = []
+        cloned = False
+        for try_branch in [branch, "master", None]:
+            try:
+                kwargs = {"depth": 1}
+                if try_branch is not None:
+                    kwargs["branch"] = try_branch
+                print(f"Cloning {repo_label} (branch: {try_branch or 'default'})...")
+                Repo.clone_from(clone_url, tmp_dir, **kwargs)
+                cloned_branch = try_branch or branch
+                cloned = True
+                break
+            except Exception as e:
+                clone_errors.append(f"{try_branch or 'default'}: {e}")
+                continue
+        if not cloned:
+            raise ValueError(
+                f"Could not clone {repo_label}. Tried branches: main, master, default. "
+                f"Errors: {'; '.join(clone_errors)}"
+            )
+        branch = cloned_branch
 
         for root, dirs, files in os.walk(tmp_dir):
             # Skip hidden dirs and common non-code dirs

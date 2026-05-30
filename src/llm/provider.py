@@ -65,6 +65,19 @@ def get_llm() -> BaseChatModel:
             temperature=config.TEMPERATURE,
         )
 
+    elif provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        if not config.ANTHROPIC_API_KEY:
+            raise ValueError(
+                "ANTHROPIC_API_KEY not set. "
+                "Get a key at https://console.anthropic.com"
+            )
+        return ChatAnthropic(
+            api_key=config.ANTHROPIC_API_KEY,
+            model=config.ANTHROPIC_MODEL,
+            temperature=config.TEMPERATURE,
+        )
+
     elif provider == "nvidia":
         from langchain_nvidia_ai_endpoints import ChatNVIDIA
         if not config.NVIDIA_API_KEY:
@@ -82,7 +95,7 @@ def get_llm() -> BaseChatModel:
     else:
         raise ValueError(
             f"Unknown LLM_PROVIDER: '{provider}'. "
-            "Choose from: groq, gemini, openai, ollama, nvidia"
+            "Choose from: groq, gemini, openai, anthropic, ollama, nvidia"
         )
 
 

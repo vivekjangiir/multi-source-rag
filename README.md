@@ -2,7 +2,7 @@
 title: Multi Source RAG with Citations
 emoji: 🔍
 colorFrom: blue
-colorTo: purple
+colorTo: green
 sdk: docker
 app_port: 7860
 pinned: false
@@ -10,35 +10,26 @@ pinned: false
 
 # 🔍 Multi-Source RAG with Citations
 
-> A production-quality Retrieval-Augmented Generation app that ingests **YouTube videos, PDFs, Word docs, web pages, GitHub repos, and live web search** — and always shows **exactly which source each answer came from**, with timestamps and page numbers.
+> Ingest **YouTube videos, PDFs, Word docs, web pages, GitHub repos, and live web search** — get answers with exact citations back to the source, timestamp, and page number.
 
-Built with **LangChain + LangGraph**. Every provider (LLM, embeddings, vector store, web search) is swappable via a single `.env` file. **Runs entirely free by default.**
+Built with **LangChain + LangGraph**. Every provider (LLM, embeddings, vector store, web search) swaps via a single `.env` line. **Runs entirely free by default.**
 
-🚀 **Live Demo:** [huggingface.co/spaces/vieveksharmaa/multi-source-rag](https://huggingface.co/spaces/vieveksharmaa/multi-source-rag)
+🚀 **Live Demo:** [huggingface.co/spaces/vieveksharmaa/multi-source-rag](https://huggingface.co/spaces/vieveksharmaa/multi-source-rag)  
+📦 **GitHub:** [github.com/vieveksharmaa/multi-source-rag](https://github.com/vieveksharmaa/multi-source-rag)
 
 ---
 
 ## Table of Contents
 
-1. [What Is RAG and Why Does This App Exist?](#1-what-is-rag-and-why-does-this-app-exist)
+1. [What Is RAG?](#1-what-is-rag)
 2. [Architecture](#2-architecture)
 3. [Local Setup](#3-local-setup)
 4. [LLM Providers](#4-llm-providers)
-   - [Groq](#41-groq--default-recommended)
-   - [NVIDIA NIM](#42-nvidia-nim-free-100-models)
-   - [Google Gemini](#43-google-gemini)
-   - [OpenAI](#44-openai)
-   - [Ollama (Local)](#45-ollama-local)
 5. [Embedding Providers](#5-embedding-providers)
 6. [Vector Stores](#6-vector-stores)
 7. [Web Search Providers](#7-web-search-providers)
 8. [Source Types](#8-source-types)
-9. [Deployment: All Platforms](#9-deployment-all-platforms)
-   - [Hugging Face Spaces](#91-hugging-face-spaces-recommended-free)
-   - [Railway](#92-railway)
-   - [Render](#93-render)
-   - [Fly.io](#94-flyio)
-   - [Self-hosted VPS](#95-self-hosted-vps-ubuntu)
+9. [Deployment](#9-deployment)
 10. [Environment Variables Reference](#10-environment-variables-reference)
 11. [API Reference](#11-api-reference)
 12. [Troubleshooting](#12-troubleshooting)
@@ -46,15 +37,9 @@ Built with **LangChain + LangGraph**. Every provider (LLM, embeddings, vector st
 
 ---
 
-## 1. What Is RAG and Why Does This App Exist?
+## 1. What Is RAG?
 
-**RAG (Retrieval-Augmented Generation)** is the technique of grounding an LLM's answer in real documents rather than its training data alone. Instead of hallucinating, the model reads the relevant passages first, then answers from them.
-
-This matters because:
-
-- LLMs cut off at a training date — they don't know about your documents or recent events.
-- LLMs hallucinate confidently. Grounding them in real sources reduces this.
-- Citations let users verify every claim — critical for research, legal, and professional use.
+**RAG (Retrieval-Augmented Generation)** grounds an LLM's answer in real documents rather than training data. Instead of hallucinating, the model reads the relevant passages first, then answers from them — with citations.
 
 **Why multi-source?** Most RAG apps handle one source type. This app handles six simultaneously:
 
@@ -62,56 +47,54 @@ This matters because:
 |---|---|
 | YouTube | Massive knowledge base; transcripts are free |
 | PDF / DOCX | Research papers, reports, books, manuals |
-| Web URLs | Articles, documentation, any public page |
+| Web URLs | Articles, docs, any public page |
 | GitHub repos | Understand codebases by asking questions |
-| Live web search | Real-time information — news, current prices, latest releases |
+| Live web search | Real-time info — news, current prices, latest releases |
 | Plain text / Markdown | Notes, logs, any raw text |
-
-The LangGraph pipeline routes each query through the right combination of these sources automatically.
 
 ---
 
 ## 2. Architecture
 
 ```
-                         ┌─────────────────────┐
-                         │     User Query       │
-                         └──────────┬──────────┘
-                                    │
-                         ┌──────────▼──────────┐
-                         │    Query Router      │  LLM decides: needs live web?
-                         └────────┬────────────┘
-                         (parallel fan-out)
-              ┌──────────────────┴──────────────────┐
-              │                                      │
-   ┌──────────▼──────────┐              ┌────────────▼───────────┐
-   │   Vector Retrieval   │              │     Web Search          │
-   │ (ChromaDB / Qdrant / │              │ (DuckDuckGo / Tavily)   │
-   │  Pinecone)           │              └────────────┬───────────┘
-   └──────────┬──────────┘                           │
-              └──────────────────┬──────────────────┘
-                                 │
-                      ┌──────────▼──────────┐
-                      │  Document Grader     │  Filters irrelevant chunks
-                      └──────────┬──────────┘
-                                 │
-                      ┌──────────▼──────────┐
-                      │  Answer Generator    │  Writes answer with [1][2] citations
-                      └─────────────────────┘
+                       ┌─────────────────────┐
+                       │     User Query       │
+                       └──────────┬──────────┘
+                                  │
+                       ┌──────────▼──────────┐
+                       │    Query Router      │  LLM decides: needs live web?
+                       └────────┬────────────┘
+                       (parallel fan-out)
+            ┌──────────────────┴──────────────────┐
+            │                                      │
+ ┌──────────▼──────────┐              ┌────────────▼───────────┐
+ │   Vector Retrieval   │              │     Web Search          │
+ │ (ChromaDB / Qdrant / │              │ (DuckDuckGo / Tavily)   │
+ │  Pinecone)           │              └────────────┬───────────┘
+ └──────────┬──────────┘                           │
+            └──────────────────┬──────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  Document Grader     │  Filters irrelevant chunks
+                    └──────────┬──────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │  Answer Generator    │  Writes answer with [1][2] citations
+                    └─────────────────────┘
 ```
 
-**Ingestion pipeline** (separate from query):
+**Ingestion pipeline:**
 
 ```
 Source URL / File
-       │
-  Source Loader         (YouTube transcript / PDF parser / web scraper / GitHub walker)
-       │
-  Text Splitter         (RecursiveCharacterTextSplitter, 1000 chars, 200 overlap)
-       │
-  Embeddings            (HuggingFace / OpenAI / Ollama / Gemini)
-       │
-  Vector Store          (ChromaDB / Qdrant / Pinecone)
+     │
+Source Loader    (YouTube transcript / PDF parser / web scraper / GitHub walker)
+     │
+Text Splitter    (RecursiveCharacterTextSplitter, 1000 chars, 200 overlap)
+     │
+Embeddings       (HuggingFace / OpenAI / Ollama / Gemini / NVIDIA)
+     │
+Vector Store     (ChromaDB / Qdrant / Pinecone)
 ```
 
 ---
@@ -120,9 +103,9 @@ Source URL / File
 
 ### Prerequisites
 
-- Python 3.11 (required — some dependencies don't support 3.12/3.13 yet)
+- Python 3.11
 - `git`
-- A free [Groq API key](https://console.groq.com) (takes 60 seconds to get)
+- A free [Groq API key](https://console.groq.com) (60 seconds to get)
 
 ### Step 1 — Clone
 
@@ -131,7 +114,7 @@ git clone https://github.com/vieveksharmaa/multi-source-rag.git
 cd multi-source-rag
 ```
 
-### Step 2 — Create a virtual environment
+### Step 2 — Virtual environment
 
 ```bash
 # Windows
@@ -155,13 +138,13 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Open `.env` and set at minimum:
+Set at minimum:
 
 ```env
 GROQ_API_KEY=your_key_here   # Free at https://console.groq.com
 ```
 
-Everything else has a working free default — you don't need to change anything else to get started.
+Everything else has a working free default.
 
 ### Step 5 — Run
 
@@ -169,254 +152,156 @@ Everything else has a working free default — you don't need to change anything
 python main.py
 ```
 
-Open **http://localhost:8000** in your browser.
-
-The first time you ingest a source, the HuggingFace embedding model (~80 MB) downloads automatically. This takes 30–60 seconds once, then it's cached.
+Open **http://localhost:8000**. The first ingest downloads the HuggingFace embedding model (~80 MB, cached after that).
 
 ### Step 6 — Test it
 
-1. Paste any YouTube URL into the sidebar → click **Ingest**
-2. Wait for "Ingested successfully"
-3. Type a question about the video → press **Send**
-4. The answer appears with `[1] [YouTube] Title @ 2:34` citations
+1. Paste any YouTube URL in the sidebar → click **Ingest**
+2. Ask a question about the video
+3. Answer appears with `[1] [YouTube] Title @ 2:34` citations
 
 ---
 
 ## 4. LLM Providers
 
-The LLM is used for two things: routing queries (should we search the web?) and generating the final answer.
-
-### How to switch
-
-Set `LLM_PROVIDER=` in your `.env` file.
+Set `LLM_PROVIDER=` in `.env` to switch. Supported: **`groq` · `gemini` · `openai` · `anthropic` · `nvidia` · `ollama`**
 
 ---
 
-### 4.1 Groq ✅ Default (recommended)
+### 4.1 Groq ✅ Default
 
-**What:** Groq runs open-source models (Llama, Gemma) on custom LPU hardware — inference is 10–20× faster than a GPU server.
-
-**Why use it:**
-- Free tier with generous rate limits
-- Fastest inference of any free provider (~500 tokens/sec)
-- No local GPU needed
-- Llama 3.1 is high quality
-
-**Why not:** Rate limited (varies by model); no fine-tuning.
-
-**Setup:**
-1. Go to [console.groq.com](https://console.groq.com) → create account → API Keys → Create Key
-2. Set in `.env`:
+Runs Llama/Gemma on custom LPU hardware — 10–20× faster than a GPU server. Free with generous rate limits.
 
 ```env
 LLM_PROVIDER=groq
-GROQ_API_KEY=gsk_...
-GROQ_MODEL=llama-3.1-8b-instant   # fast, good quality
-# or: llama-3.3-70b-versatile     # slower, best quality
-# or: gemma2-9b-it                # Google's Gemma 2
+GROQ_API_KEY=gsk_...           # https://console.groq.com
+GROQ_MODEL=llama-3.1-8b-instant
+# or: llama-3.3-70b-versatile
 ```
-
-**Models comparison:**
 
 | Model | Speed | Quality | Rate limit |
 |---|---|---|---|
-| `llama-3.1-8b-instant` | ⚡⚡⚡ | ⭐⭐⭐ | 30k tokens/min |
-| `llama-3.3-70b-versatile` | ⚡⚡ | ⭐⭐⭐⭐⭐ | 6k tokens/min |
-| `gemma2-9b-it` | ⚡⚡⚡ | ⭐⭐⭐ | 15k tokens/min |
+| `llama-3.1-8b-instant` | ⚡⚡⚡ | ⭐⭐⭐ | 30k tok/min |
+| `llama-3.3-70b-versatile` | ⚡⚡ | ⭐⭐⭐⭐⭐ | 6k tok/min |
+| `gemma2-9b-it` | ⚡⚡⚡ | ⭐⭐⭐ | 15k tok/min |
 
 ---
 
-### 4.2 NVIDIA NIM (free, 100+ models)
+### 4.2 Google Gemini
 
-**What:** NVIDIA's inference microservices platform — one API endpoint that hosts 100+ open-source models (Llama, Mistral, DeepSeek, Qwen, Gemma, and more) on NVIDIA's own GPU infrastructure.
-
-**Why use it:**
-- Completely free — no credit card required (just sign up)
-- 100+ models from every major family in one place
-- Great quality — some models (DeepSeek R1, Llama 3.1 405B) match GPT-4 quality
-- OpenAI-compatible API — easy to integrate
-- ~40 requests/minute on the free tier
-
-**Why not:** Rate limited on the free tier; requires sign-up.
-
-**Setup:**
-1. Go to [build.nvidia.com](https://build.nvidia.com) → sign in → top-right menu → **API Key**
-2. Copy your `nvapi-...` key
-3. Set in `.env`:
-
-```env
-LLM_PROVIDER=nvidia
-NVIDIA_API_KEY=nvapi-...
-NVIDIA_MODEL=meta/llama-3.1-8b-instruct   # fast, good quality
-```
-
-**On HuggingFace Spaces:** Settings → Variables and secrets → add `NVIDIA_API_KEY` as a secret, then add `LLM_PROVIDER=nvidia` as a regular variable.
-
-**Popular model choices:**
-
-| Model ID | Type | Speed | Quality |
-|---|---|---|---|
-| `meta/llama-3.1-8b-instruct` | General | ⚡⚡⚡ | ⭐⭐⭐ |
-| `meta/llama-3.3-70b-instruct` | General | ⚡⚡ | ⭐⭐⭐⭐⭐ |
-| `meta/llama-3.1-405b-instruct` | General | ⚡ | ⭐⭐⭐⭐⭐ |
-| `deepseek-ai/deepseek-r1` | Reasoning | ⚡ | ⭐⭐⭐⭐⭐ |
-| `deepseek-ai/deepseek-r1-0528` | Reasoning | ⚡ | ⭐⭐⭐⭐⭐ |
-| `qwen/qwen2.5-72b-instruct` | General | ⚡⚡ | ⭐⭐⭐⭐ |
-| `qwen/qwen2.5-coder-32b-instruct` | Coding | ⚡⚡ | ⭐⭐⭐⭐⭐ |
-| `mistralai/mistral-large-2-instruct` | General | ⚡⚡ | ⭐⭐⭐⭐ |
-| `nvidia/llama-3.1-nemotron-ultra-253b-v1` | Reasoning | ⚡ | ⭐⭐⭐⭐⭐ |
-| `moonshotai/kimi-k2` | General | ⚡⚡ | ⭐⭐⭐⭐⭐ |
-
-> Full catalogue of 100+ models: [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover)
-
----
-
-### 4.3 Google Gemini
-
-**What:** Google's multimodal model family. The free tier is more generous than OpenAI's.
-
-**Why use it:**
-- Free tier: 15 requests/min, 1M tokens/day
-- Gemini 1.5 Flash is fast and capable
-- Good for longer context windows
-
-**Why not:** Google account required; responses can be over-cautious.
-
-**Setup:**
-1. Go to [aistudio.google.com](https://aistudio.google.com) → Get API Key
-2. Set in `.env`:
+Free tier: 15 req/min, 1M tokens/day. Good for longer contexts.
 
 ```env
 LLM_PROVIDER=gemini
-GOOGLE_API_KEY=AIza...
-GEMINI_MODEL=gemini-1.5-flash   # fast, free
-# or: gemini-1.5-pro            # more capable, stricter rate limits
+GOOGLE_API_KEY=AIza...          # https://aistudio.google.com
+GEMINI_MODEL=gemini-1.5-flash
+# or: gemini-1.5-pro
 ```
 
-Also uncomment in `requirements.txt`:
-```
-langchain-google-genai>=2.0.0
-```
+Uncomment in `requirements.txt`: `langchain-google-genai>=2.0.0`
 
 ---
 
-### 4.4 OpenAI
+### 4.3 OpenAI
 
-**What:** GPT-4o, GPT-4o-mini, GPT-3.5-turbo. The industry standard.
-
-**Why use it:**
-- Best overall quality (GPT-4o)
-- Most reliable API
-- Rich ecosystem
-
-**Why not:** Paid only. GPT-4o costs ~$5 per 1M input tokens.
-
-**Setup:**
-1. Go to [platform.openai.com](https://platform.openai.com) → API Keys
-2. Set in `.env`:
+Industry standard. GPT-4o is the highest quality option. Paid only.
 
 ```env
 LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini   # cheap, good
-# or: gpt-4o               # best quality
+OPENAI_API_KEY=sk-...           # https://platform.openai.com
+OPENAI_MODEL=gpt-4o-mini
+# or: gpt-4o
 ```
 
-Also uncomment in `requirements.txt`:
-```
-langchain-openai>=0.2.0
-```
+Uncomment in `requirements.txt`: `langchain-openai>=0.2.0`
 
 ---
 
-### 4.5 Ollama (Local)
+### 4.4 Anthropic Claude ✅ Supported
 
-**What:** Run open-source models entirely on your own machine. No API key, no cost, no data leaves your computer.
+Claude models via the Anthropic API. Excellent at following instructions and producing well-structured answers with citations.
 
-**Why use it:**
-- 100% private — no data sent to any server
-- No rate limits
-- Works offline
-- Free forever
-
-**Why not:** Requires a capable GPU (or slow on CPU); not suitable for cloud deployment.
-
-**Setup:**
-1. Install Ollama from [ollama.ai](https://ollama.ai)
-2. Pull a model:
-   ```bash
-   ollama pull llama3        # 4.7GB — recommended
-   ollama pull mistral       # 4.1GB — fast
-   ollama pull phi3          # 2.3GB — lightweight
-   ```
-3. Set in `.env`:
-   ```env
-   LLM_PROVIDER=ollama
-   OLLAMA_BASE_URL=http://localhost:11434
-   OLLAMA_MODEL=llama3
-   ```
-
-Also uncomment in `requirements.txt`:
+```env
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...    # https://console.anthropic.com
+ANTHROPIC_MODEL=claude-3-5-haiku-20241022
+# or: claude-3-5-sonnet-20241022   # higher quality
+# or: claude-opus-4-6              # best quality
 ```
-langchain-ollama>=0.2.0
+
+Uncomment in `requirements.txt`: `langchain-anthropic>=0.3.0`
+
+**Model comparison:**
+
+| Model | Speed | Quality | Best for |
+|---|---|---|---|
+| `claude-3-5-haiku-20241022` | ⚡⚡⚡ | ⭐⭐⭐⭐ | Fast, cost-effective |
+| `claude-3-5-sonnet-20241022` | ⚡⚡ | ⭐⭐⭐⭐⭐ | Best balance |
+| `claude-opus-4-6` | ⚡ | ⭐⭐⭐⭐⭐ | Maximum quality |
+
+---
+
+### 4.5 NVIDIA NIM (free, 100+ models)
+
+One API endpoint with 100+ open-source models. Free tier, no credit card.
+
+```env
+LLM_PROVIDER=nvidia
+NVIDIA_API_KEY=nvapi-...        # https://build.nvidia.com
+NVIDIA_MODEL=meta/llama-3.1-8b-instruct
 ```
+
+Popular models: `meta/llama-3.3-70b-instruct` · `deepseek-ai/deepseek-r1` · `qwen/qwen2.5-72b-instruct`  
+Full catalogue: [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover)
+
+---
+
+### 4.6 Ollama (Local)
+
+Run models entirely on your own machine. No API key, no cost, no data leaves your computer.
+
+```bash
+ollama pull llama3    # 4.7GB
+```
+
+```env
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3
+```
+
+Uncomment in `requirements.txt`: `langchain-ollama>=0.2.0`
 
 ---
 
 ## 5. Embedding Providers
 
-Embeddings convert text into vectors (lists of numbers that capture meaning). The embedding model determines how well your vector search works — a better model finds more relevant chunks.
+Set `EMBEDDING_PROVIDER=` in `.env`. Supported: **`huggingface` · `openai` · `gemini` · `nvidia` · `ollama`**
 
-> ⚠️ **Important:** If you change embedding provider after ingesting documents, you must clear your vector store and re-ingest. Vectors from different models are mathematically incompatible.
-
-### How to switch
-
-Set `EMBEDDING_PROVIDER=` in your `.env` file.
+> ⚠️ If you change embedding provider after ingesting, delete `./data/chroma_db/` and re-ingest. Vectors from different models are incompatible.
 
 ---
 
-### 5.1 HuggingFace (Local) ✅ Default (recommended for free use)
+### 5.1 HuggingFace (Local) ✅ Default
 
-**What:** Downloads and runs a small embedding model locally using `sentence-transformers`. No API key, no cost.
-
-**Why use it:**
-- Completely free, no API key
-- Runs on CPU (no GPU needed)
-- `all-MiniLM-L6-v2` is surprisingly good (~84% on BEIR benchmark)
-- Model is cached after first download
-
-**Why not:** ~80 MB download on first run; slightly slower than API-based embeddings.
-
-**Setup:**
+Downloads and runs a small model locally. No API key. Free forever.
 
 ```env
 EMBEDDING_PROVIDER=huggingface
-HUGGINGFACE_EMBEDDING_MODEL=all-MiniLM-L6-v2
+HUGGINGFACE_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 ```
 
-**Model options:**
-
-| Model | Size | Speed | Quality | Best for |
-|---|---|---|---|---|
-| `all-MiniLM-L6-v2` | 80 MB | ⚡⚡⚡ | ⭐⭐⭐ | General use, cloud deploy |
-| `all-mpnet-base-v2` | 420 MB | ⚡⚡ | ⭐⭐⭐⭐ | Better quality, local only |
-| `BAAI/bge-small-en-v1.5` | 130 MB | ⚡⚡⚡ | ⭐⭐⭐⭐ | Best small model |
-| `BAAI/bge-large-en-v1.5` | 1.3 GB | ⚡ | ⭐⭐⭐⭐⭐ | Best quality, GPU recommended |
+| Model | Size | Quality |
+|---|---|---|
+| `all-MiniLM-L6-v2` | 80 MB | ⭐⭐⭐ |
+| `BAAI/bge-small-en-v1.5` | 130 MB | ⭐⭐⭐⭐ |
+| `BAAI/bge-large-en-v1.5` | 1.3 GB | ⭐⭐⭐⭐⭐ |
 
 ---
 
 ### 5.2 OpenAI Embeddings
 
-**What:** `text-embedding-3-small` or `text-embedding-3-large` via the OpenAI API.
-
-**Why use it:**
-- Best quality embeddings available commercially
-- Very fast (API call, not local compute)
-- `text-embedding-3-small` costs ~$0.02 per 1M tokens (very cheap)
-
-**Why not:** Paid; data sent to OpenAI.
-
-**Setup:**
+Best commercial quality. ~$0.02/1M tokens.
 
 ```env
 EMBEDDING_PROVIDER=openai
@@ -426,33 +311,9 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 
 ---
 
-### 5.3 Ollama Embeddings (Local)
+### 5.3 Google Gemini Embeddings
 
-**What:** Uses a locally-running Ollama model for embeddings. Good companion if you're already using Ollama for the LLM.
-
-**Why use it:** Everything local, private, free.
-
-**Setup:**
-
-```bash
-ollama pull nomic-embed-text   # best local embedding model
-```
-
-```env
-EMBEDDING_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
-```
-
----
-
-### 5.4 Google Gemini Embeddings
-
-**What:** `models/embedding-001` via the Gemini API. Free tier.
-
-**Why use it:** Free, good quality, pairs well with Gemini LLM.
-
-**Setup:**
+Free tier. Pairs well with Gemini LLM.
 
 ```env
 EMBEDDING_PROVIDER=gemini
@@ -461,607 +322,216 @@ GOOGLE_API_KEY=AIza...
 
 ---
 
-### 5.5 NVIDIA NIM Embeddings
+### 5.4 NVIDIA NIM Embeddings
 
-**What:** NVIDIA's hosted embedding models via the NIM API. High-quality, purpose-built for retrieval tasks.
-
-**Why use it:**
-- No local memory usage — all inference is remote
-- Strong retrieval quality (nv-embedqa models are fine-tuned for Q&A)
-- Free on NVIDIA's free tier (same `NVIDIA_API_KEY`)
-
-**Why not:** Adds API latency on every ingest and query; uses NIM rate limit quota. For most RAG apps the default HuggingFace embeddings are good enough.
-
-**Setup:**
+Purpose-built for retrieval Q&A. No local memory usage.
 
 ```env
 EMBEDDING_PROVIDER=nvidia
 NVIDIA_API_KEY=nvapi-...
-NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5   # recommended
+NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5
 ```
 
-**Model options:**
+---
 
-| Model ID | Dimensions | Best for |
-|---|---|---|
-| `nvidia/nv-embedqa-e5-v5` | 1024 | General Q&A retrieval ✅ recommended |
-| `snowflake/arctic-embed-l` | 1024 | Long documents |
-| `nvidia/nv-embed-v1` | 4096 | Maximum quality, higher cost |
-| `nvidia/llama-3.2-nv-embedqa-1b-v2` | 2048 | Fast, good quality |
-| `intfloat/multilingual-e5-large` | 1024 | Multi-language content |
+### 5.5 Ollama Embeddings (Local)
 
-> ⚠️ If you switch embedding models after ingesting documents, delete `./data/chroma_db/` and re-ingest — vectors from different models are incompatible.
+```bash
+ollama pull nomic-embed-text
+```
 
-**Pinecone dimension guide for NVIDIA models:**
-
-| Model | Dimension to set in Pinecone |
-|---|---|
-| `nvidia/nv-embedqa-e5-v5` | 1024 |
-| `nvidia/nv-embed-v1` | 4096 |
-| `nvidia/llama-3.2-nv-embedqa-1b-v2` | 2048 |
+```env
+EMBEDDING_PROVIDER=ollama
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+```
 
 ---
 
 ## 6. Vector Stores
 
-The vector store holds your embedded document chunks and enables fast similarity search. When you ask a question, it finds the most semantically similar chunks to pass to the LLM.
-
-### How to switch
-
-Set `VECTOR_STORE=` in your `.env` file.
-
-> ⚠️ After switching vector stores, you must re-ingest all your documents into the new store.
+Set `VECTOR_STORE=` in `.env`. Supported: **`chroma` · `qdrant` · `pinecone`**
 
 ---
 
-### 6.1 ChromaDB ✅ Default (recommended to start)
+### 6.1 ChromaDB ✅ Default
 
-**What:** An open-source, embedded vector database. Runs in the same process as the app — no separate server needed. Stores data to disk automatically.
-
-**Why use it:**
-- Zero setup — just works
-- Fast enough for thousands of documents
-- Persists to disk between restarts
-- Open source, free forever
-
-**Why not:** Not suitable for multi-process or distributed deployments; performance degrades beyond ~100K vectors.
-
-**Setup:**
+Zero setup. Persists to disk. Fast for up to ~100K vectors.
 
 ```env
 VECTOR_STORE=chroma
 CHROMA_PERSIST_DIR=./data/chroma_db
 ```
 
-Data is stored at `./data/chroma_db/`. To reset: delete that folder and re-ingest.
-
 ---
 
 ### 6.2 Qdrant
 
-**What:** A purpose-built, high-performance vector database with filtering, payload storage, and a REST API.
-
-**Why use it:**
-- Significantly faster than ChromaDB for large collections
-- Excellent filtering (e.g., "only search YouTube sources")
-- Can run locally via Docker or on Qdrant Cloud (free tier: 1GB)
-- Production-ready
-
-**Why not:** Requires a separate Docker container or cloud account.
-
-**Local setup:**
+High-performance. Runs locally via Docker or on Qdrant Cloud (free 1GB tier).
 
 ```bash
-docker run -p 6333:6333 -v $(pwd)/qdrant_data:/qdrant/storage qdrant/qdrant
+docker run -p 6333:6333 qdrant/qdrant
 ```
 
 ```env
 VECTOR_STORE=qdrant
 QDRANT_URL=http://localhost:6333
-QDRANT_COLLECTION=rag_documents
 ```
 
-**Qdrant Cloud setup (free 1GB tier):**
-
-1. Create account at [cloud.qdrant.io](https://cloud.qdrant.io)
-2. Create a cluster → copy URL and API key
-3. Set in `.env`:
-   ```env
-   QDRANT_URL=https://your-cluster.qdrant.io
-   QDRANT_API_KEY=your_key
-   ```
-
-Also uncomment in `requirements.txt`:
-```
-langchain-qdrant>=0.1.0
-qdrant-client>=1.9.0
-```
+Uncomment in `requirements.txt`: `langchain-qdrant>=0.1.0` and `qdrant-client>=1.9.0`
 
 ---
 
 ### 6.3 Pinecone
 
-**What:** A fully managed, serverless vector database in the cloud. No infrastructure to run.
+Fully managed, serverless. Free tier: 1 index, 2GB.
 
-**Why use it:**
-- Zero infrastructure management
-- Scales to billions of vectors
-- Free tier: 1 index, 2GB storage
-- Best for production apps with high query volume
-
-**Why not:** Paid beyond free tier; data stored on Pinecone's servers; higher latency than local options.
-
-**Setup:**
-
-1. Create account at [pinecone.io](https://pinecone.io)
-2. Create an index with dimension `384` (for `all-MiniLM-L6-v2`)
-3. Set in `.env`:
-   ```env
-   VECTOR_STORE=pinecone
-   PINECONE_API_KEY=pcsk_...
-   PINECONE_INDEX=rag-index
-   PINECONE_ENVIRONMENT=us-east-1-aws
-   ```
-
-Also uncomment in `requirements.txt`:
-```
-langchain-pinecone>=0.2.0
-pinecone-client>=4.0.0
+```env
+VECTOR_STORE=pinecone
+PINECONE_API_KEY=pcsk_...
+PINECONE_INDEX=rag-index
 ```
 
-**Dimension guide** — must match your embedding model:
+Uncomment in `requirements.txt`: `langchain-pinecone>=0.2.0` and `pinecone-client>=4.0.0`
+
+**Dimension guide** (must match embedding model):
 
 | Embedding model | Dimension |
 |---|---|
 | `all-MiniLM-L6-v2` | 384 |
-| `all-mpnet-base-v2` | 768 |
 | `BAAI/bge-small-en-v1.5` | 384 |
 | `text-embedding-3-small` | 1536 |
-| `nomic-embed-text` | 768 |
+| `nvidia/nv-embedqa-e5-v5` | 1024 |
 
 ---
 
 ## 7. Web Search Providers
 
-Web search is used when the query router decides the question needs live / current information (news, recent events, real-time data). It supplements the vector store results.
+Set `WEB_SEARCH_PROVIDER=` in `.env`. Triggered automatically when a query needs live data.
 
-### How to switch
-
-Set `WEB_SEARCH_PROVIDER=` in your `.env` file.
-
----
-
-### 7.1 DuckDuckGo ✅ Default (recommended, no key needed)
-
-**What:** DuckDuckGo's unofficial search API. No account, no key, completely free.
-
-**Why use it:** Zero setup. Works immediately.
-
-**Why not:** Rate-limited if you make many searches quickly; occasionally returns fewer results than Google.
-
-**Setup:** Nothing to configure. It's the default.
-
-```env
-WEB_SEARCH_PROVIDER=duckduckgo
-WEB_SEARCH_MAX_RESULTS=5
-```
-
----
-
-### 7.2 Tavily
-
-**What:** An AI-focused search API built specifically for RAG systems. Returns clean, structured results optimized for LLM consumption.
-
-**Why use it:**
-- Returns cleaner results than DuckDuckGo (less HTML noise)
-- Designed for RAG — better source quality
-- Free tier: 1,000 searches/month
-- More reliable than the DuckDuckGo unofficial API
-
-**Why not:** Requires signup; limited free tier.
-
-**Setup:**
-
-1. Create account at [tavily.com](https://tavily.com) → get API key
-2. Set in `.env`:
-   ```env
-   WEB_SEARCH_PROVIDER=tavily
-   TAVILY_API_KEY=tvly-...
-   ```
-
-Also uncomment in `requirements.txt`:
-```
-tavily-python>=0.3.0
-```
-
----
-
-### 7.3 SerpAPI
-
-**What:** Google Search results via API. Paid only.
-
-**Why use it:** Most accurate and comprehensive search results (it's real Google).
-
-**Why not:** No free tier; $50+/month for meaningful usage.
-
-**Setup:**
-
-```env
-WEB_SEARCH_PROVIDER=serpapi
-SERPAPI_API_KEY=your_key
-```
+| Provider | Cost | Setup |
+|---|---|---|
+| `duckduckgo` ✅ default | Free | None |
+| `tavily` | 1000 searches/mo free | [tavily.com](https://tavily.com) |
+| `serpapi` | Paid | [serpapi.com](https://serpapi.com) |
 
 ---
 
 ## 8. Source Types
 
-### YouTube Videos
+| Source | How to ingest | Citation format |
+|---|---|---|
+| **YouTube** | Paste URL in sidebar | `[YouTube] "Title" @ 2:34 — youtube.com/...?t=154s` |
+| **PDF** | Upload file or local path | `[PDF] "filename.pdf" — Page 5` |
+| **DOCX** | Upload file | `[DOCX] "filename.docx"` |
+| **Web URL** | Paste `https://` URL | `[Web] "Page Title" — example.com` |
+| **GitHub repo** | Paste `https://github.com/org/repo` | `[GitHub] org/repo — src/auth.py` |
+| **Live search** | Automatic (no ingestion needed) | `[Web Search] "Result Title"` |
 
-Pulls the auto-generated or human transcript from any YouTube video and chunks it with timestamps.
+**GitHub note:** Set `GITHUB_TOKEN=ghp_...` for private repos or to avoid rate limits.
 
-**Works with:** Any video that has captions enabled (most videos do)
-
-**Doesn't work with:** Private videos, age-restricted videos without login, videos with transcripts disabled
-
-**Ingest:** Paste the full YouTube URL: `https://www.youtube.com/watch?v=VIDEO_ID`
-
-**Citation format:** `[YouTube] "Video Title" @ 12:34 — https://youtu.be/VIDEO_ID?t=754`
-
-**Note:** On cloud platforms (HuggingFace, Render, etc.) YouTube may block transcript requests from cloud IP ranges. If this happens, try a different video or use a PDF/URL instead.
-
----
-
-### PDF Documents
-
-Extracts text from any PDF using PyMuPDF. Handles scanned PDFs (with embedded text layers), multi-column layouts, and tables.
-
-**Ingest:** Upload via the file upload button, or provide a local file path in the source field.
-
-**Citation format:** `[PDF] "filename.pdf" — Page 5`
-
-**Tip:** Academic papers work exceptionally well. Upload a PDF and ask "summarize the key findings."
+**YouTube note:** Cloud platforms (HuggingFace, Render) may have YouTube block transcript requests. Run locally if this is an issue.
 
 ---
 
-### Word Documents (DOCX)
-
-Extracts plain text from `.docx` files using `docx2txt`.
-
-**Ingest:** Upload via the file upload button.
-
-**Citation format:** `[DOCX] "filename.docx"`
-
----
-
-### Web URLs
-
-Fetches and parses any public webpage. Removes navigation, ads, and boilerplate — keeps the main content.
-
-**Ingest:** Paste any `https://` URL into the source field.
-
-**Citation format:** `[Web] "Page Title" — https://example.com/article`
-
-**Works great for:** Documentation pages, blog posts, news articles, Wikipedia.
-
----
-
-### GitHub Repositories
-
-Walks the repository file tree and ingests source files with their file paths as citations.
-
-**Ingest:** Paste `https://github.com/org/repo` into the source field.
-
-**Citation format:** `[GitHub] "org/repo" — src/components/Auth.tsx`
-
-**Tip:** Ask "How does authentication work?" or "Where is the database connection configured?" and get file-path citations.
-
-**Rate limiting:** GitHub allows 60 requests/hour unauthenticated. For large repos, set `GITHUB_TOKEN` in your `.env`:
-```env
-GITHUB_TOKEN=ghp_...   # Personal access token from github.com/settings/tokens
-```
-
----
-
-### Live Web Search
-
-Automatically triggered by the query router when it detects time-sensitive keywords ("latest", "current", "today", "news", "2024", "now"). No manual ingestion needed.
-
-**Citation format:** `[Web Search] "Result Title" — https://source.com`
-
----
-
-## 9. Deployment: All Platforms
+## 9. Deployment
 
 ### 9.1 Hugging Face Spaces ✅ Recommended (free)
 
-**What:** HuggingFace Spaces is a free hosting platform for ML demos. Docker spaces give you a full container environment with up to 16GB RAM — plenty for embedding models.
+16GB RAM, persistent storage, no sleep on public spaces.
 
-**Why choose this:**
-- Free forever (CPU Basic tier)
-- 16GB RAM — no out-of-memory errors during embedding
-- Persistent `/data` volume — ChromaDB survives restarts
-- No sleep on public spaces
-- "Deployed on HuggingFace" looks great on a portfolio
-- Designed for AI/ML apps — knows about model downloads
-
-**Steps:**
-
-1. Push your code to GitHub (if not done):
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/YOUR_USERNAME/multi-source-rag.git
-   git push -u origin main
-   ```
-
-2. Create a Space at [huggingface.co/new-space](https://huggingface.co/new-space):
-   - Name: `multi-source-rag`
-   - SDK: **Docker**
-   - Hardware: **CPU Basic** (free)
-   - Visibility: **Public**
-
-3. Add HuggingFace as a git remote:
+1. Push to GitHub
+2. Create a Space at [huggingface.co/new-space](https://huggingface.co/new-space) — SDK: **Docker**, Hardware: **CPU Basic**
+3. Add HF as a remote and push:
    ```bash
    git remote add hf https://huggingface.co/spaces/YOUR_HF_USERNAME/multi-source-rag
-   git push hf main --force
+   git push hf main
    ```
+4. Add secrets: Space → **Settings** → **Variables and Secrets** → add `GROQ_API_KEY` (or your chosen provider key)
 
-4. Add your secret API keys:
-   - Space → **Settings** → **Variables and Secrets** → **New secret**
-   - Add `GROQ_API_KEY` = your Groq key (if using Groq)
-   - Add `NVIDIA_API_KEY` = your NIM key (if using NVIDIA)
-   - To switch provider: add a regular variable `LLM_PROVIDER=nvidia` (or `groq`, `gemini`, etc.)
-   - Leave `EMBEDDING_PROVIDER` unset — the default `huggingface` runs locally on the Space with no API calls needed
+Your app runs at `https://YOUR_HF_USERNAME-multi-source-rag.hf.space`
 
-5. Your app is live at:
-   `https://YOUR_HF_USERNAME-multi-source-rag.hf.space`
-
-**Build time:** ~3–5 minutes (downloads model at build time, not runtime).
-
-**Redeploy after code changes:**
+**Redeploy:**
 ```bash
-git add .
-git commit -m "Update"
-git push hf main
+git add . && git commit -m "update" && git push hf main
 ```
 
 ---
 
 ### 9.2 Railway
 
-**What:** A simple PaaS that deploys directly from GitHub. Similar to Heroku but modern. $5 free credit/month (~500 hours).
+$5 free credit/month. Auto-deploys from GitHub. No sleep.
 
-**Why choose this:**
-- Easiest migration from Render
-- No sleep (unlike Render free tier)
-- Auto-deploy on every git push
-- Good logs and metrics dashboard
-
-**Steps:**
-
-1. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
-
-2. Select your repo → Railway auto-detects Python and uses `requirements.txt`
-
-3. Add environment variables:
-   - Settings → Variables → Add all variables from your `.env`
-
-4. Set start command:
-   - Settings → Deploy → Start Command:
-   ```
-   uvicorn main:app --host 0.0.0.0 --port $PORT
-   ```
-
-5. Your app deploys automatically.
-
-**Note:** Railway's free tier has 500 hours/month. Keep usage within limits to stay free.
+1. [railway.app](https://railway.app) → New Project → Deploy from GitHub
+2. Settings → Variables → add your `.env` values
+3. Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 
 ---
 
 ### 9.3 Render
 
-**What:** Render is a cloud platform with a free web service tier. The free tier sleeps after 15 minutes of inactivity.
+Free tier available but only 512MB RAM (embedding model is tight) and ephemeral filesystem.
 
-**Why choose this:**
-- Simple GitHub integration
-- Free tier available
-- Good for low-traffic apps
+1. [render.com](https://render.com) → New Web Service → connect GitHub repo
+2. Build Command: `pip install -r requirements.txt`
+3. Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Add environment variables in Dashboard → Environment
 
-**Why it's tricky for this app:**
-- Free tier only has 512MB RAM — the HuggingFace embedding model can exceed this
-- Ephemeral filesystem — ChromaDB resets on every restart/sleep
-- Cold starts take 30+ seconds on free tier
-
-**Steps:**
-
-1. Ensure `runtime.txt` contains `python-3.11.9` (already done)
-
-2. Go to [render.com](https://render.com) → New → Web Service
-
-3. Connect your GitHub repo
-
-4. Set:
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-
-5. Add environment variables (Dashboard → Environment):
-   - `GROQ_API_KEY` = your key
-   - All other vars from `.env`
-
-6. Click **Create Web Service**
-
-**Recommendation:** Use HuggingFace Spaces instead — same free tier cost ($0) but 32× more RAM.
+> Recommendation: Use HuggingFace Spaces instead — same cost ($0), 32× more RAM.
 
 ---
 
 ### 9.4 Fly.io
 
-**What:** Container hosting with a generous free tier. Docker-based, meaning you deploy the same `Dockerfile` used for HuggingFace.
+Free: 3 VMs + 3GB persistent volume. Docker-based.
 
-**Why choose this:**
-- Free tier: 3 shared-CPU VMs + 3GB persistent volume
-- Your data persists (unlike Render)
-- CLI-driven deployment
-- Global edge deployment
-
-**Steps:**
-
-1. Install Fly CLI:
-   ```bash
-   # macOS
-   brew install flyctl
-   # Windows
-   iwr https://fly.io/install.ps1 -useb | iex
-   ```
-
-2. Login and launch:
-   ```bash
-   fly auth login
-   fly launch   # auto-detects Dockerfile, asks for app name and region
-   ```
-
-3. Set secrets:
-   ```bash
-   fly secrets set GROQ_API_KEY=gsk_...
-   ```
-
-4. Attach persistent storage:
-   ```bash
-   fly volumes create rag_data --size 1   # 1GB volume, free
-   ```
-
-5. Deploy:
-   ```bash
-   fly deploy
-   ```
-
-**Redeploy:**
 ```bash
+fly auth login
+fly launch
+fly secrets set GROQ_API_KEY=gsk_...
+fly volumes create rag_data --size 1
 fly deploy
 ```
 
 ---
 
-### 9.5 Self-Hosted VPS (Ubuntu)
+### 9.5 Self-Hosted VPS
 
-**What:** Run the app on your own server — DigitalOcean, Hetzner, Linode, AWS EC2, etc.
+Best for production. Hetzner starts at ~€4/month.
 
-**Why choose this:**
-- Full control over resources and data
-- No sleep, no cold starts
-- Can use larger embedding models (GPU instances)
-- Cheapest per-compute at scale (Hetzner VPS starts at €3.29/month)
+```bash
+sudo apt update && sudo apt install -y python3.11 python3.11-venv git
+git clone https://github.com/vieveksharmaa/multi-source-rag.git
+cd multi-source-rag
+python3.11 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env && nano .env
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
-**Steps:**
-
-1. SSH into your server and install dependencies:
-   ```bash
-   sudo apt update && sudo apt install -y python3.11 python3.11-venv git
-   ```
-
-2. Clone your repo:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/multi-source-rag.git
-   cd multi-source-rag
-   ```
-
-3. Set up environment:
-   ```bash
-   python3.11 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   nano .env   # set your API keys
-   ```
-
-4. Run as a background service with systemd:
-   ```bash
-   sudo nano /etc/systemd/system/rag-app.service
-   ```
-
-   ```ini
-   [Unit]
-   Description=Multi-Source RAG App
-   After=network.target
-
-   [Service]
-   User=ubuntu
-   WorkingDirectory=/home/ubuntu/multi-source-rag
-   EnvironmentFile=/home/ubuntu/multi-source-rag/.env
-   ExecStart=/home/ubuntu/multi-source-rag/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
-   Restart=always
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-   ```bash
-   sudo systemctl enable rag-app
-   sudo systemctl start rag-app
-   ```
-
-5. Set up Nginx as a reverse proxy (optional but recommended):
-   ```bash
-   sudo apt install -y nginx
-   sudo nano /etc/nginx/sites-available/rag-app
-   ```
-
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-
-       location / {
-           proxy_pass http://127.0.0.1:8000;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           client_max_body_size 50M;
-       }
-   }
-   ```
-
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/rag-app /etc/nginx/sites-enabled/
-   sudo nginx -t && sudo systemctl restart nginx
-   ```
-
-6. Add HTTPS with Let's Encrypt:
-   ```bash
-   sudo apt install -y certbot python3-certbot-nginx
-   sudo certbot --nginx -d your-domain.com
-   ```
+Use systemd to run as a background service and Nginx + Certbot for HTTPS.
 
 ---
 
 ### Platform Comparison
 
-| Platform | Cost | RAM | Persistent Storage | Sleep | Best For |
-|---|---|---|---|---|---|
-| **HuggingFace Spaces** | Free | 16 GB | ✅ Yes (/data) | No | ✅ Portfolio / demos |
-| **Railway** | $5 credit/mo | 512 MB | ❌ Ephemeral | No | Quick deploy |
-| **Render** | Free | 512 MB | ❌ Ephemeral | After 15 min | Low traffic |
-| **Fly.io** | Free (3 VMs) | 256 MB | ✅ 3 GB volume | Sometimes | CLI power users |
-| **VPS (Hetzner)** | ~€4/mo | 2–4 GB | ✅ Full disk | No | Production |
+| Platform | Cost | RAM | Persistent Storage | Sleep |
+|---|---|---|---|---|
+| **HuggingFace Spaces** | Free | 16 GB | ✅ /data | No |
+| **Railway** | $5 credit/mo | 512 MB | ❌ | No |
+| **Render** | Free | 512 MB | ❌ | After 15 min |
+| **Fly.io** | Free (3 VMs) | 256 MB | ✅ 3 GB | Sometimes |
+| **VPS (Hetzner)** | ~€4/mo | 2–4 GB | ✅ | No |
 
 ---
 
 ## 10. Environment Variables Reference
 
-Copy `.env.example` to `.env` and set these values.
-
 ```env
 # ── LLM ───────────────────────────────────────────────────────────────────
-LLM_PROVIDER=groq              # groq | nvidia | gemini | openai | ollama
+LLM_PROVIDER=groq              # groq | gemini | openai | anthropic | nvidia | ollama
+
 GROQ_API_KEY=gsk_...           # https://console.groq.com (free)
 GROQ_MODEL=llama-3.1-8b-instant
-
-NVIDIA_API_KEY=nvapi-...       # https://build.nvidia.com (free, no credit card)
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=meta/llama-3.1-8b-instruct
-                               # other options: meta/llama-3.3-70b-instruct
-                               #                deepseek-ai/deepseek-r1
-                               #                qwen/qwen2.5-coder-32b-instruct
 
 GOOGLE_API_KEY=AIza...         # https://aistudio.google.com (free tier)
 GEMINI_MODEL=gemini-1.5-flash
@@ -1069,14 +539,20 @@ GEMINI_MODEL=gemini-1.5-flash
 OPENAI_API_KEY=sk-...          # https://platform.openai.com (paid)
 OPENAI_MODEL=gpt-4o-mini
 
+ANTHROPIC_API_KEY=sk-ant-...   # https://console.anthropic.com
+ANTHROPIC_MODEL=claude-3-5-haiku-20241022
+
+NVIDIA_API_KEY=nvapi-...       # https://build.nvidia.com (free, no credit card)
+NVIDIA_MODEL=meta/llama-3.1-8b-instruct
+
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3
 
 # ── Embeddings ────────────────────────────────────────────────────────────
-EMBEDDING_PROVIDER=huggingface  # huggingface | nvidia | openai | ollama | gemini
-HUGGINGFACE_EMBEDDING_MODEL=all-MiniLM-L6-v2
-NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5   # or: snowflake/arctic-embed-l
+EMBEDDING_PROVIDER=huggingface  # huggingface | openai | gemini | nvidia | ollama
+HUGGINGFACE_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+NVIDIA_EMBEDDING_MODEL=nvidia/nv-embedqa-e5-v5
 OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 
 # ── Vector Store ──────────────────────────────────────────────────────────
@@ -1084,7 +560,7 @@ VECTOR_STORE=chroma             # chroma | qdrant | pinecone
 CHROMA_PERSIST_DIR=./data/chroma_db
 
 QDRANT_URL=http://localhost:6333
-QDRANT_API_KEY=                 # Only for Qdrant Cloud
+QDRANT_API_KEY=
 QDRANT_COLLECTION=rag_documents
 
 PINECONE_API_KEY=pcsk_...
@@ -1097,259 +573,116 @@ TAVILY_API_KEY=tvly-...
 WEB_SEARCH_MAX_RESULTS=5
 
 # ── GitHub ────────────────────────────────────────────────────────────────
-GITHUB_TOKEN=ghp_...            # Optional — increases rate limit
+GITHUB_TOKEN=ghp_...            # Optional — needed for private repos / high rate limits
 
-# ── App Settings ──────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────
 APP_NAME="Multi-Source RAG"
 DEBUG=false
-MAX_CHUNK_SIZE=1000             # Characters per chunk
-CHUNK_OVERLAP=200               # Overlap between chunks
-TOP_K_RESULTS=5                 # Docs to retrieve per query
-TEMPERATURE=0.1                 # LLM temperature (0 = deterministic)
+MAX_CHUNK_SIZE=1000
+CHUNK_OVERLAP=200
+TOP_K_RESULTS=5
+TEMPERATURE=0.1
 ```
 
 ---
 
 ## 11. API Reference
 
-The FastAPI backend exposes these endpoints. When running locally, interactive docs are at `http://localhost:8000/docs`.
+Interactive docs at `http://localhost:8000/docs`.
 
 ### `POST /ingest`
-
-Ingest a URL-based source.
-
-**Request:**
 ```json
 { "source": "https://www.youtube.com/watch?v=VIDEO_ID" }
-{ "source": "https://github.com/langchain-ai/langchain" }
-{ "source": "https://example.com/article" }
 ```
-
-**Response:**
+Response:
 ```json
-{
-  "status": "success",
-  "message": "Ingested 23 chunks from YouTube: 'Video Title'",
-  "chunks": 23
-}
+{ "status": "ok", "source_type": "youtube", "chunks_added": 23 }
 ```
-
----
 
 ### `POST /ingest/file`
-
-Upload a file (PDF, DOCX, TXT, MD).
-
-**Form data:**
-- `file` — the file to upload
-
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Ingested 45 chunks from PDF: 'document.pdf'",
-  "chunks": 45
-}
-```
-
----
+Form data: `file` — PDF, DOCX, TXT, MD
 
 ### `POST /query`
-
-Ask a question. Returns an answer with citations.
-
-**Request:**
 ```json
-{ "query": "What is the main argument in the paper?" }
+{ "query": "What is the main argument?" }
 ```
-
-**Response:**
+Response:
 ```json
 {
-  "answer": "The main argument is that RAG reduces hallucination by [1] grounding responses in retrieved documents [2].",
+  "answer": "The main argument is... [1][2]",
   "citations": [
-    {
-      "number": 1,
-      "text": "[YouTube] 'LangChain RAG Tutorial' @ 5:20",
-      "url": "https://youtube.com/watch?v=...&t=320s",
-      "source_type": "youtube"
-    },
-    {
-      "number": 2,
-      "text": "[PDF] 'rag_survey.pdf' — Page 3",
-      "url": "",
-      "source_type": "pdf"
-    }
+    { "number": 1, "source_type": "youtube", "title": "...", "url": "...", "extra": "@ 5:20" }
   ]
 }
 ```
-
----
 
 ### `GET /health`
+Returns current provider config.
 
-Returns current configuration and status.
-
-```json
-{
-  "status": "ok",
-  "llm_provider": "groq",
-  "embedding_provider": "huggingface",
-  "vector_store": "chroma"
-}
-```
-
----
-
-### `GET /sources`
-
-Lists all ingested source types.
-
-```json
-{ "sources": ["youtube", "pdf", "web"] }
-```
-
----
+### `GET /config`
+Returns LLM provider, model, embedding provider, vector store, chunk settings.
 
 ### `DELETE /store/clear`
-
-Deletes all ingested documents and resets the vector store.
-
-```json
-{ "status": "cleared" }
-```
-
----
-
-### `GET /debug/store`
-
-Shows how many documents are in the vector store.
-
-```json
-{ "count": 142, "store": "chroma" }
-```
-
----
+Wipes all indexed data.
 
 ### `GET /debug/retrieve?q=your+query`
+Shows raw retrieval results with similarity scores — useful for debugging.
 
-Tests retrieval directly — bypasses the LLM and shows raw retrieved chunks.
-
-```json
-{
-  "query": "your query",
-  "results": [
-    {
-      "content": "chunk text...",
-      "source_type": "youtube",
-      "citation": "[YouTube] 'Title' @ 2:10",
-      "score": 0.42
-    }
-  ]
-}
-```
+### `GET /debug/store`
+Shows all chunks currently in the vector store.
 
 ---
 
 ## 12. Troubleshooting
 
-**Q: First ingestion is slow (30–60 seconds)**
-The HuggingFace embedding model downloads on first use (~80MB). It's cached after that. On cloud platforms with Docker, it's pre-downloaded at build time so this delay doesn't happen.
+**First ingest is slow (30–60 sec)**
+The HuggingFace model downloads on first use (~80–130 MB). Cached after that. Docker builds pre-download it so cloud deploys don't have this delay.
 
----
+**"YouTube transcripts are blocked"**
+YouTube blocks cloud provider IPs. Options: use a PDF/URL source instead, or run locally where your home IP isn't blocked.
 
-**Q: "Failed to fetch transcript" on YouTube**
-YouTube blocks transcript requests from cloud provider IP ranges (AWS, GCP, HuggingFace infrastructure). Options:
-- Try a different video (some are more permissive)
-- Use a PDF or web URL instead for cloud deployments
-- Run locally where your home IP isn't blocked
+**Answers about wrong topic / stale data**
+Click **Clear All** in the sidebar, then re-ingest your sources.
 
----
+**"Context does not contain information about..."**
+Either ingestion returned 0 chunks (check the response) or the query is too vague. Use `GET /debug/retrieve?q=your+query` to see exactly what gets retrieved.
 
-**Q: Answers are about the wrong topic / old data appears**
-Your vector store has stale data from a previous session. Fix: click **"Clear All"** in the sidebar to wipe the store, then re-ingest your sources.
-
----
-
-**Q: "The context does not contain information about..."**
-Two possible causes:
-1. The ingestion failed silently — check the ingestion response for chunk count. If it says 0 chunks, ingestion failed.
-2. The query is too vague — try more specific keywords that appear in the source text.
-
-Use `GET /debug/retrieve?q=your+query` to see exactly what the retriever finds.
-
----
-
-**Q: ChromaDB error after changing embedding model**
-Delete `./data/chroma_db/` and re-ingest. Vectors from different models can't be mixed.
-
+**ChromaDB error after changing embedding model**
 ```bash
 rm -rf ./data/chroma_db/
 ```
+Then re-ingest.
 
----
-
-**Q: Groq rate limit error**
-Switch to a different model or provider temporarily:
+**Groq rate limit**
 ```env
-GROQ_MODEL=gemma2-9b-it        # Different quota pool
-# or
-LLM_PROVIDER=nvidia            # NVIDIA NIM free tier
-NVIDIA_MODEL=meta/llama-3.1-8b-instruct
-# or
-LLM_PROVIDER=gemini            # Google's free tier
+GROQ_MODEL=gemma2-9b-it         # different quota pool
+# or switch provider entirely
+LLM_PROVIDER=anthropic
+LLM_PROVIDER=gemini
 ```
 
----
+**GitHub clone fails**
+The loader tries `main` → `master` → default branch automatically. If it still fails, the repo may be private — set `GITHUB_TOKEN` in `.env`.
 
-**Q: NVIDIA NIM rate limit / 429 error**
-The free tier allows ~40 requests/minute. For a RAG app this is usually fine since queries are user-driven. If you hit limits:
-```env
-NVIDIA_MODEL=meta/llama-3.2-3b-instruct   # smaller model, separate quota pool
-# or switch back temporarily
-LLM_PROVIDER=groq
-```
-
----
-
-**Q: NVIDIA API key not working**
-Make sure the key starts with `nvapi-` and was copied from [build.nvidia.com](https://build.nvidia.com) (not from the NVIDIA developer portal, which is a different system). On HuggingFace Spaces, add it as a **Secret** (not a regular variable) in Settings → Variables and secrets.
-
----
-
-**Q: Out of memory on cloud platform**
-The `all-MiniLM-L6-v2` model needs ~300MB RAM during inference. Render's free tier (512MB) can hit this. Switch to HuggingFace Spaces (16GB RAM) or use `EMBEDDING_PROVIDER=gemini` (API-based, no local memory).
-
----
-
-**Q: Port already in use locally**
-```bash
-# Find what's using port 8000
-lsof -i :8000        # macOS/Linux
-netstat -ano | findstr :8000   # Windows
-
-# Kill it or change the port:
-uvicorn main:app --port 8001
-```
+**Out of memory on cloud**
+The default embedding model needs ~300 MB RAM. Switch to an API-based embedder: `EMBEDDING_PROVIDER=gemini` or `EMBEDDING_PROVIDER=nvidia`.
 
 ---
 
 ## 13. Tech Stack
 
-| Component | Library | Why |
-|---|---|---|
-| **LLM orchestration** | LangChain | Standardized interface across all LLM providers |
-| **Pipeline graph** | LangGraph | Stateful, cyclical RAG pipeline with parallel retrieval |
-| **LLM (default)** | Groq + Llama 3.1 | Fastest free inference; no GPU needed |
-| **LLM (alternative)** | NVIDIA NIM | 100+ models, free tier, OpenAI-compatible |
-| **Embeddings (default)** | HuggingFace sentence-transformers | Free, local, no API key |
-| **Embeddings (alternative)** | NVIDIA NIM Embeddings | API-based, fine-tuned for retrieval Q&A |
-| **Vector store (default)** | ChromaDB | Zero-config local persistence |
-| **Web search (default)** | DuckDuckGo | No API key, no rate limit signup |
-| **YouTube transcripts** | youtube-transcript-api | No YouTube API key needed |
-| **PDF parsing** | PyMuPDF (fitz) | Handles scanned/complex PDFs better than pdfplumber |
-| **DOCX parsing** | docx2txt | Lightweight, reliable |
-| **Web scraping** | BeautifulSoup4 + requests | Standard, well-maintained |
-| **Backend API** | FastAPI | Async, fast, auto-generates OpenAPI docs |
-| **ASGI server** | Uvicorn | Production-grade Python web server |
-| **Containerisation** | Docker | Consistent environment across all deployment platforms |
+| Component | Library |
+|---|---|
+| LLM orchestration | LangChain |
+| Pipeline graph | LangGraph |
+| LLM (default) | Groq + Llama 3.1 |
+| LLM (also supported) | Anthropic Claude · Google Gemini · OpenAI GPT · NVIDIA NIM · Ollama |
+| Embeddings (default) | HuggingFace sentence-transformers |
+| Vector store (default) | ChromaDB |
+| Web search (default) | DuckDuckGo |
+| YouTube transcripts | youtube-transcript-api + yt-dlp + Invidious fallback |
+| PDF parsing | PyMuPDF |
+| DOCX parsing | docx2txt |
+| Web scraping | BeautifulSoup4 + requests |
+| Backend API | FastAPI + Uvicorn |
+| Containerisation | Docker |

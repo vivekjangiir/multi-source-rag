@@ -20,6 +20,7 @@ langchain-nvidia-ai-endpoints>=0.3.0
 # langchain-google-genai>=2.0.0
 # langchain-openai>=0.2.0
 # langchain-ollama>=0.2.0
+# langchain-anthropic>=0.3.0
 
 # Embeddings — HuggingFace local (free default)
 langchain-huggingface>=0.1.0

@@ -18,6 +18,10 @@ OPENAI_MODEL       = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OLLAMA_BASE_URL    = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL       = os.getenv("OLLAMA_MODEL", "llama3")
 
+# ── Anthropic ────────────────────────────────────────────────────────────────
+ANTHROPIC_API_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL    = os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+
 # ── NVIDIA NIM ───────────────────────────────────────────────────────────────
 NVIDIA_API_KEY     = os.getenv("NVIDIA_API_KEY", "")
 NVIDIA_BASE_URL    = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")

@@ -159,6 +159,7 @@ def get_config():
             "groq": config.GROQ_MODEL,
             "gemini": config.GEMINI_MODEL,
             "openai": config.OPENAI_MODEL,
+            "anthropic": config.ANTHROPIC_MODEL,
             "ollama": config.OLLAMA_MODEL,
         }.get(config.LLM_PROVIDER, "unknown"),
         "embedding_provider": config.EMBEDDING_PROVIDER,
