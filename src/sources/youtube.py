@@ -510,7 +510,10 @@ def load_youtube(url: str) -> List[Document]:
         "✅ What you can do instead:\n"
         "  • Upload a PDF or Word doc on the same topic\n"
         "  • Paste a web article URL about the video's topic\n"
-        "  • Ask a question directly — live web search will find relevant sources\n"
-        "  • Run the app locally (transcripts work fine from home/office IPs)\n\n"
+        "  • Ask a question directly — live web search will find relevant sources\n\n"
+        "🖥️ Run it locally — transcripts work fine from home/office IPs:\n"
+        "  1. Clone: git clone https://github.com/vieveksharmaa/multi-source-rag\n"
+        "  2. Set your API key in .env — works with Anthropic Claude, Google Gemini, or OpenAI\n"
+        "  3. Run: python main.py → open http://localhost:8000\n\n"
         f"Video: {url}"
     )
