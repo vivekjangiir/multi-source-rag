@@ -13,7 +13,7 @@ import tempfile
 # Page config
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Multi-Source RAG",
+    page_title="Multi Source RAG",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="expanded",
